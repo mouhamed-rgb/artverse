@@ -1,0 +1,1683 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SketchSync — رسم جماعي احترافي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="/socket.io/socket.io.js"></script>
+
+<style>
+/* ═══════════════════════════════════════════════
+   RESET & TOKENS
+═══════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+
+:root{
+  --bg0:#08090d;
+  --bg1:#0f1117;
+  --bg2:#161922;
+  --bg3:#1c2030;
+  --bg4:#232839;
+  --border0:#ffffff0a;
+  --border1:#ffffff14;
+  --border2:#ffffff22;
+  --border3:#ffffff35;
+  --accent:#5b8af0;
+  --accent-h:#7ba3ff;
+  --accent-g:#5b8af022;
+  --green:#3dd68c;
+  --red:#f06060;
+  --amber:#f5a623;
+  --txt0:#eef0f6;
+  --txt1:#9aa3b8;
+  --txt2:#5a6280;
+  --txt3:#353d58;
+  --font:'IBM Plex Sans Arabic',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+  --r4:4px;--r6:6px;--r8:8px;--r12:12px;--r16:16px;
+  --ease:cubic-bezier(.4,0,.2,1);
+  --sidebar-w:224px;
+}
+
+html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt0);font-family:var(--font);font-size:14px;line-height:1.5}
+
+/* ═══════════════════════════════════════════════
+   KEYFRAMES
+═══════════════════════════════════════════════ */
+@keyframes fadeUp   {from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes fadeOut  {from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(.95)}}
+@keyframes pulse    {0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes ripple   {from{transform:scale(.8);opacity:.8}to{transform:scale(2.4);opacity:0}}
+@keyframes slideR   {from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+@keyframes spin     {to{transform:rotate(360deg)}}
+@keyframes floatY   {0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes glowPulse{0%,100%{box-shadow:0 0 0 0 var(--accent-g)}50%{box-shadow:0 0 0 8px transparent}}
+@keyframes scanline {0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+
+/* ═══════════════════════════════════════════════
+   LOADING SCREEN
+═══════════════════════════════════════════════ */
+#loadingScreen{
+  position:fixed;inset:0;z-index:999;
+  background:var(--bg0);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;
+  animation:fadeUp .4s var(--ease);
+}
+#loadingScreen.hide{animation:fadeOut .35s var(--ease) forwards;pointer-events:none}
+
+.loader-ring{
+  width:52px;height:52px;border-radius:50%;
+  border:3px solid var(--border1);
+  border-top-color:var(--accent);
+  animation:spin .8s linear infinite;
+}
+.loader-text{font-size:13px;color:var(--txt2);font-family:var(--mono)}
+.loader-sub{font-size:11px;color:var(--txt3);margin-top:-12px}
+
+/* ═══════════════════════════════════════════════
+   LOBBY
+═══════════════════════════════════════════════ */
+#lobby{
+  position:fixed;inset:0;z-index:200;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--bg0);
+  animation:fadeUp .5s var(--ease);
+}
+#lobby.hide{animation:fadeOut .35s var(--ease) forwards;pointer-events:none}
+
+.lobby-wrap{width:400px;max-width:92vw}
+
+.lobby-hero{text-align:center;margin-bottom:32px}
+.lobby-icon{font-size:48px;display:block;animation:floatY 3.5s ease-in-out infinite;margin-bottom:10px}
+.lobby-title{font-size:30px;font-weight:600;letter-spacing:-.6px;margin-bottom:4px}
+.lobby-title em{font-style:normal;color:var(--accent)}
+.lobby-sub{font-size:13px;color:var(--txt2);font-weight:300}
+
+.card{
+  background:var(--bg2);
+  border:1px solid var(--border1);
+  border-radius:var(--r16);
+  padding:24px;
+  margin-bottom:12px;
+}
+
+.field-label{
+  font-size:10px;text-transform:uppercase;letter-spacing:1.1px;
+  color:var(--txt3);margin-bottom:8px;
+}
+
+.field{
+  width:100%;background:var(--bg0);
+  border:1px solid var(--border2);border-radius:var(--r8);
+  padding:10px 14px;color:var(--txt0);
+  font-family:var(--font);font-size:14px;
+  outline:none;transition:border-color .15s var(--ease);
+  margin-bottom:14px;
+}
+.field:focus{border-color:var(--accent)}
+.field::placeholder{color:var(--txt3)}
+.field.mono{font-family:var(--mono);letter-spacing:3px;text-align:center;text-transform:uppercase}
+
+.btn-row{display:flex;gap:8px}
+
+.btn{
+  padding:10px 18px;border:none;border-radius:var(--r8);
+  font-family:var(--font);font-size:13px;font-weight:500;
+  cursor:pointer;transition:all .15s var(--ease);
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-accent{background:var(--accent);color:#fff;flex:1}
+.btn-accent:hover{background:var(--accent-h);transform:translateY(-1px)}
+.btn-accent:active{transform:none}
+.btn-ghost{
+  background:transparent;border:1px solid var(--border2);
+  color:var(--txt1);white-space:nowrap;
+}
+.btn-ghost:hover{border-color:var(--border3);color:var(--txt0)}
+
+.divider{
+  display:flex;align-items:center;gap:10px;
+  color:var(--txt3);font-size:11px;margin:18px 0;
+}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border0)}
+
+.lobby-note{font-size:11px;color:var(--txt3);text-align:center;line-height:1.7;margin-top:10px}
+
+/* Connection badge */
+.conn-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:11px;padding:4px 10px;border-radius:20px;
+  border:1px solid var(--border1);color:var(--txt2);
+  font-family:var(--mono);margin-bottom:20px;
+}
+.conn-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s ease-in-out infinite}
+.conn-dot.off{background:var(--red);animation:none}
+
+/* ═══════════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════════ */
+#app{display:none;height:100vh;width:100vw;flex-direction:row}
+#app.on{display:flex}
+
+/* ═══════════════════════════════════════════════
+   SIDEBAR
+═══════════════════════════════════════════════ */
+.sidebar{
+  width:var(--sidebar-w);flex-shrink:0;
+  background:var(--bg1);
+  border-left:1px solid var(--border0);
+  display:flex;flex-direction:column;
+  padding:14px;gap:4px;
+  overflow-y:auto;overflow-x:hidden;
+  z-index:10;
+  scrollbar-width:thin;scrollbar-color:var(--border1) transparent;
+}
+
+.sb-brand{
+  display:flex;align-items:center;gap:9px;
+  padding:2px 0 12px;border-bottom:1px solid var(--border0);
+  margin-bottom:6px;
+}
+.sb-icon{font-size:20px}
+.sb-name{font-size:14px;font-weight:600}
+.sb-ver{font-size:9px;color:var(--txt3);font-family:var(--mono)}
+
+.sec-lbl{
+  font-size:9px;text-transform:uppercase;letter-spacing:1.2px;
+  color:var(--txt3);margin:10px 0 6px;padding-right:2px;
+}
+
+/* Colors */
+.clr-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:8px}
+.clr-swatch{
+  aspect-ratio:1;border-radius:var(--r6);cursor:pointer;
+  border:2px solid transparent;
+  transition:transform .13s var(--ease),border-color .13s;
+}
+.clr-swatch:hover{transform:scale(1.18)}
+.clr-swatch.on{border-color:#fff;transform:scale(1.1);outline:1px solid rgba(255,255,255,.25);outline-offset:1px}
+
+.clr-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.clr-custom-btn{
+  width:34px;height:34px;border-radius:var(--r6);
+  border:1px dashed var(--border2);background:transparent;
+  cursor:pointer;font-size:17px;color:var(--txt2);
+  transition:all .13s;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.clr-custom-btn:hover{border-color:var(--accent);color:var(--accent)}
+#cpicker{position:absolute;opacity:0;pointer-events:none;width:0;height:0}
+.clr-preview{flex:1;height:34px;border-radius:var(--r6);border:1px solid var(--border1);transition:background .15s}
+
+/* Sliders */
+.sl-wrap{margin-bottom:2px}
+.sl-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+.sl-lbl{font-size:12px;color:var(--txt1)}
+.sl-val{
+  font-family:var(--mono);font-size:11px;color:var(--accent);
+  background:var(--bg0);padding:2px 7px;border-radius:20px;
+  border:1px solid var(--border1);
+}
+input[type=range]{
+  width:100%;-webkit-appearance:none;height:3px;
+  border-radius:2px;background:var(--border2);outline:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--accent);border:2px solid var(--bg1);
+  box-shadow:0 0 0 2px var(--accent-g);
+  transition:transform .13s;
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
+
+/* Tool buttons */
+.tools-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:2px 0}
+.tbtn{
+  background:var(--bg2);border:1px solid var(--border1);
+  border-radius:var(--r8);padding:9px 4px;
+  color:var(--txt2);cursor:pointer;
+  font-family:var(--font);font-size:11px;
+  transition:all .13s var(--ease);
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+}
+.tbtn:hover{background:var(--bg3);border-color:var(--border2);color:var(--txt0)}
+.tbtn.on{background:var(--accent-g);border-color:var(--accent);color:var(--accent)}
+.tbtn-ico{font-size:17px}
+
+/* Action buttons */
+.abtn{
+  width:100%;background:transparent;border:1px solid var(--border1);
+  border-radius:var(--r8);padding:8px;color:var(--txt2);
+  cursor:pointer;font-family:var(--font);font-size:12px;
+  transition:all .13s;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  margin-top:4px;
+}
+.abtn:hover{border-color:var(--border2);color:var(--txt0);background:var(--bg3)}
+.abtn.danger{border-color:#f0606030;color:var(--red)}
+.abtn.danger:hover{background:#f0606012;border-color:var(--red)}
+.abtn.success{border-color:var(--green)30;color:var(--green)}
+.abtn.success:hover{background:#3dd68c12}
+
+/* Undo/Redo row */
+.ur-row{display:flex;gap:5px}
+.ur-row .abtn{flex:1}
+
+/* Room panel */
+.room-panel{
+  background:var(--bg0);border:1px solid var(--border1);
+  border-radius:var(--r8);padding:10px;margin-top:4px;
+}
+.room-id{
+  font-family:var(--mono);font-size:17px;color:var(--accent);
+  letter-spacing:4px;text-align:center;margin-bottom:8px;
+}
+.room-users-count{font-size:11px;color:var(--txt3);text-align:center;margin-bottom:8px}
+
+/* Users list */
+.users-list{display:flex;flex-direction:column;gap:4px}
+.user-item{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 8px;border-radius:var(--r6);
+  background:var(--bg0);font-size:12px;
+  animation:slideR .22s var(--ease);
+}
+.user-avatar{
+  width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:600;flex-shrink:0;
+  color:var(--bg0);
+}
+.user-name{flex:1;color:var(--txt1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-me{font-size:9px;color:var(--txt3);font-family:var(--mono)}
+.user-online{width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0}
+
+/* Conn indicator */
+.conn-indicator{
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;color:var(--txt2);
+  padding:6px 8px;border-radius:var(--r6);
+  border:1px solid var(--border0);
+  font-family:var(--mono);
+}
+.ci-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+.ci-dot.warn{background:var(--amber);animation:pulse 1s ease-in-out infinite}
+.ci-dot.off{background:var(--red);animation:none}
+
+.spacer{flex:1}
+
+/* ═══════════════════════════════════════════════
+   CANVAS AREA
+═══════════════════════════════════════════════ */
+.canvas-wrap{
+  flex:1;position:relative;
+  background:var(--bg0);overflow:hidden;
+}
+.canvas-wrap canvas{position:absolute;inset:0}
+#cvMain{cursor:crosshair;z-index:3;touch-action:none}
+#cvBase{z-index:1}
+#cvOverlay{z-index:4;pointer-events:none}
+
+/* Grid */
+.canvas-wrap::before{
+  content:'';position:absolute;inset:0;z-index:0;
+  background-image:
+    linear-gradient(var(--border0) 1px,transparent 1px),
+    linear-gradient(90deg,var(--border0) 1px,transparent 1px);
+  background-size:44px 44px;
+  pointer-events:none;
+}
+
+.eraser-active #cvMain{cursor:none}
+
+/* Status bar */
+.status-bar{
+  position:absolute;bottom:14px;left:50%;
+  transform:translateX(-50%);
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:30px;padding:5px 14px;
+  font-size:11px;color:var(--txt2);z-index:20;
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--mono);white-space:nowrap;
+  backdrop-filter:blur(6px);
+}
+.sb-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2.5s ease-in-out infinite}
+.sb-dot.off{background:var(--red);animation:none}
+
+/* Remote cursors */
+.r-cursor{
+  position:absolute;pointer-events:none;z-index:30;
+  display:flex;align-items:flex-start;gap:3px;
+  transition:left .05s linear,top .05s linear;
+  will-change:left,top;
+}
+.r-cursor-arrow{font-size:15px;filter:drop-shadow(0 1px 3px #00000080);transform:rotate(-10deg)}
+.r-cursor-lbl{
+  font-size:10px;padding:2px 7px;border-radius:10px;
+  color:#fff;margin-top:1px;font-family:var(--font);
+  white-space:nowrap;
+}
+
+/* Shape preview canvas */
+#cvPreview{z-index:2;pointer-events:none}
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
+#toast{
+  position:fixed;bottom:54px;left:50%;
+  transform:translateX(-50%) translateY(12px);
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:var(--r8);padding:9px 18px;
+  font-size:13px;color:var(--txt0);
+  z-index:500;opacity:0;
+  transition:opacity .25s,transform .25s;
+  pointer-events:none;white-space:nowrap;
+}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ═══════════════════════════════════════════════
+   MOBILE
+═══════════════════════════════════════════════ */
+@media(max-width:680px){
+  #app.on{flex-direction:column-reverse}
+  .sidebar{
+    width:100%;height:auto;max-height:46vh;
+    flex-direction:row;flex-wrap:wrap;
+    border-left:none;border-top:1px solid var(--border0);
+    overflow-x:auto;overflow-y:hidden;
+    padding:10px;gap:8px;align-items:flex-start;
+  }
+  .sb-brand,.sec-lbl,.users-list,.room-panel,.conn-indicator,.spacer,
+  .abtn.danger,.ur-row,.sb-ver{display:none!important}
+  .clr-grid{grid-template-columns:repeat(10,30px)}
+  .clr-swatch{width:30px;height:30px}
+  .tools-grid{grid-template-columns:repeat(6,1fr);width:100%}
+  .sl-wrap{width:100%}
+  .status-bar{bottom:8px}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════ LOADING ══════════ -->
+<div id="loadingScreen">
+  <div class="loader-ring"></div>
+  <div class="loader-text" id="loadTxt">جاري التهيئة…</div>
+  <div class="loader-sub" id="loadSub">SketchSync v2</div>
+</div>
+
+<!-- ══════════ LOBBY ══════════ -->
+<div id="lobby" style="display:none">
+  <div class="lobby-wrap">
+    <div class="lobby-hero">
+      <span class="lobby-icon">🎨</span>
+      <h1 class="lobby-title">Sketch<em>Sync</em></h1>
+      <p class="lobby-sub">رسم جماعي في الوقت الحقيقي · بدون تسجيل دخول</p>
+    </div>
+
+    <div style="display:flex;justify-content:center;margin-bottom:20px">
+      <div class="conn-badge" id="connBadge">
+        <div class="conn-dot off" id="connDotLobby"></div>
+        <span id="connTxtLobby">جاري الاتصال…</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="field-label">اسمك (اختياري)</p>
+      <input class="field" id="nameInput" type="text" placeholder="رسام مجهول" maxlength="20" autocomplete="off">
+
+      <p class="field-label">إنشاء غرفة جديدة</p>
+      <button class="btn btn-accent" onclick="createRoom()" style="width:100%;margin-bottom:4px" id="createBtn">
+        ✦ إنشاء غرفة جديدة
+      </button>
+
+      <div class="divider">أو انضم لغرفة موجودة</div>
+
+      <p class="field-label">كود الغرفة</p>
+      <div class="btn-row">
+        <input class="field mono" id="codeInput" type="text" placeholder="XXXX" maxlength="6"
+          oninput="this.value=this.value.toUpperCase()" autocomplete="off" style="margin:0">
+        <button class="btn btn-ghost" onclick="joinRoom()" id="joinBtn">دخول</button>
+      </div>
+    </div>
+
+    <p class="lobby-note">شارك رمز الغرفة مع أصدقائك — لا كلمة مرور، لا حسابات.</p>
+  </div>
+</div>
+
+<!-- ══════════ APP ══════════ -->
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <span class="sb-icon">🎨</span>
+      <div>
+        <div class="sb-name">SketchSync</div>
+        <div class="sb-ver">v2.0 · real-time</div>
+      </div>
+    </div>
+
+    <p class="sec-lbl">الألوان</p>
+    <div class="clr-grid" id="clrGrid"></div>
+    <div class="clr-row">
+      <input type="color" id="cpicker" value="#ffffff">
+      <button class="clr-custom-btn" onclick="document.getElementById('cpicker').click()" title="لون مخصص">＋</button>
+      <div class="clr-preview" id="clrPreview"></div>
+    </div>
+
+    <p class="sec-lbl">الفرشاة</p>
+    <div class="sl-wrap">
+      <div class="sl-head">
+        <span class="sl-lbl">الحجم</span>
+        <span class="sl-val" id="szVal">4px</span>
+      </div>
+      <input type="range" id="szSlider" min="1" max="64" value="4" oninput="setSz(+this.value)">
+    </div>
+    <div class="sl-wrap" style="margin-top:10px">
+      <div class="sl-head">
+        <span class="sl-lbl">الشفافية</span>
+        <span class="sl-val" id="opVal">100%</span>
+      </div>
+      <input type="range" id="opSlider" min="5" max="100" value="100" oninput="setOp(+this.value)">
+    </div>
+
+    <p class="sec-lbl">الأدوات</p>
+    <div class="tools-grid" id="toolsGrid">
+      <button class="tbtn on" data-tool="pen"    onclick="setTool('pen')">    <span class="tbtn-ico">✏️</span><span>قلم</span></button>
+      <button class="tbtn"    data-tool="eraser" onclick="setTool('eraser')"> <span class="tbtn-ico">🧹</span><span>ممحاة</span></button>
+      <button class="tbtn"    data-tool="line"   onclick="setTool('line')">   <span class="tbtn-ico">📏</span><span>خط</span></button>
+      <button class="tbtn"    data-tool="rect"   onclick="setTool('rect')">   <span class="tbtn-ico">⬜</span><span>مستطيل</span></button>
+      <button class="tbtn"    data-tool="circle" onclick="setTool('circle')"> <span class="tbtn-ico">⭕</span><span>دائرة</span></button>
+      <button class="tbtn"    data-tool="fill"   onclick="setTool('fill')">   <span class="tbtn-ico">🪣</span><span>تعبئة</span></button>
+    </div>
+
+    <div class="ur-row">
+      <button class="abtn" onclick="undo()" title="Ctrl+Z">↩ تراجع</button>
+      <button class="abtn" onclick="redo()" title="Ctrl+Y">↪ إعادة</button>
+    </div>
+    <button class="abtn danger" onclick="askClear()">🗑️ مسح الكل</button>
+
+    <p class="sec-lbl">الغرفة</p>
+    <div class="room-panel">
+      <div class="room-id" id="roomIdLbl">——</div>
+      <div class="room-users-count" id="roomUsersCount">0 مستخدم</div>
+      <button class="abtn success" onclick="copyLink()" style="margin:0">🔗 نسخ الرابط</button>
+    </div>
+
+    <p class="sec-lbl">المتصلون</p>
+    <div class="users-list" id="usersList"></div>
+
+    <div class="spacer"></div>
+
+    <div class="conn-indicator" id="connIndicator">
+      <div class="ci-dot off" id="ciDot"></div>
+      <span id="ciTxt">غير متصل</span>
+    </div>
+
+    <button class="abtn" onclick="leaveRoom()" style="margin-top:4px;color:var(--txt3)">← مغادرة</button>
+  </aside>
+
+  <!-- CANVAS -->
+  <div class="canvas-wrap" id="wrap">
+    <canvas id="cvBase"></canvas>
+    <canvas id="cvPreview"></canvas>
+    <canvas id="cvMain"></canvas>
+    <canvas id="cvOverlay"></canvas>
+
+    <div class="status-bar">
+      <div class="sb-dot" id="sbDot"></div>
+      <span id="sbTxt">متصل</span>
+      <span style="color:var(--border1)">|</span>
+      <span id="coords">0, 0</span>
+      <span style="color:var(--border1)">|</span>
+      <span id="sbTool">قلم</span>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ══════════════════════════════════════════════════
+     SCRIPT
+══════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ─── PALETTE ─────────────────────────────────── */
+const PALETTE=['#ffffff','#e4e8f0','#8892a4','#3d4460',
+  '#ff6b6b','#ff9f43','#ffd32a','#48dbfb',
+  '#0abde3','#006ba6','#3dd68c','#05c46b',
+  '#5b8af0','#a29bfe','#fd79a8','#e84393',
+  '#00cec9','#1e272e','#74b9ff','#55efc4'];
+
+/* ─── STATE ───────────────────────────────────── */
+let socket, myId, myName, myColor, roomId;
+let curColor='#ffffff', curSz=4, curOp=1, curTool='pen';
+let drawing=false, sx=0, sy=0, lx=0, ly=0;
+let penSegments=[];             // batched pen points for one stroke
+let undoStack=[], redoStack=[]; // local imageData snapshots (max 20)
+let snapshotCounter=0;          // how many strokes since last server snapshot
+const SNAPSHOT_EVERY=50;
+
+/* ─── CANVAS REFS ─────────────────────────────── */
+let cvMain, cvBase, cvPrev, cvOver;
+let ctxMain, ctxBase, ctxPrev, ctxOver;
+
+/* ─── CURSOR THROTTLE ─────────────────────────── */
+let lastCursorEmit=0;
+const CURSOR_THROTTLE=40; // ms
+
+/* ─── INIT ────────────────────────────────────── */
+window.onload=()=>{
+  cvMain=document.getElementById('cvMain');
+  cvBase=document.getElementById('cvBase');
+  cvPrev=document.getElementById('cvPreview');
+  cvOver=document.getElementById('cvOverlay');
+  ctxMain=cvMain.getContext('2d');
+  ctxBase=cvBase.getContext('2d');
+  ctxPrev=cvPrev.getContext('2d');
+  ctxOver=cvOver.getContext('2d');
+
+  buildPalette();
+  setColor('#ffffff');
+  resizeAll();
+  window.addEventListener('resize',resizeAll);
+
+  cvMain.addEventListener('mousedown', onDown);
+  cvMain.addEventListener('mousemove', onMove);
+  cvMain.addEventListener('mouseup',   onUp);
+  cvMain.addEventListener('mouseleave',onLeave);
+  cvMain.addEventListener('touchstart', onTStart,{passive:false});
+  cvMain.addEventListener('touchmove',  onTMove,{passive:false});
+  cvMain.addEventListener('touchend',   onTEnd,{passive:false});
+
+  document.addEventListener('keydown', onKey);
+  document.getElementById('cpicker').addEventListener('input',e=>setColor(e.target.value));
+
+  // URL room param
+  const p=new URLSearchParams(location.search);
+  if(p.get('room')) document.getElementById('codeInput').value=p.get('room').toUpperCase();
+
+  connectSocket();
+};
+
+/* ─── SOCKET.IO ───────────────────────────────── */
+function connectSocket(){
+  setLoad('جاري الاتصال بالسيرفر…');
+  socket=io({
+    reconnection:true,
+    reconnectionAttempts:Infinity,
+    reconnectionDelay:1000,
+    reconnectionDelayMax:8000,
+    timeout:20000,
+  });
+
+  socket.on('connect',()=>{
+    setConnected(true);
+    setLoad('متصل ✓');
+    setTimeout(showLobby,500);
+  });
+
+  socket.on('disconnect',()=>{
+    setConnected(false);
+    toast('⚠️ انقطع الاتصال — إعادة محاولة…');
+  });
+
+  socket.on('connect_error',()=>setConnected(false));
+
+  socket.on('reconnect',()=>{
+    setConnected(true);
+    toast('✅ أُعيد الاتصال');
+    // Re-join room if we were in one
+    if(roomId) doJoin(roomId,false);
+  });
+
+  // Drawing events from server
+  socket.on('stroke', remoteStroke);
+  socket.on('shape',  remoteShape);
+  socket.on('fill',   remoteFill);
+  socket.on('clear',  e=>{ remoteCtxClear(); toast('🗑️ '+(e?.by||'أحد')+'  مسح اللوحة'); });
+
+  // Canvas state from server on join
+  socket.on('canvas-snapshot',({dataUrl,strokesAfter})=>{
+    applySnapshot(dataUrl).then(()=>{
+      strokesAfter.forEach(applyRecord);
+    });
+  });
+  socket.on('canvas-replay', records=>{
+    ctxMain.clearRect(0,0,cvMain.width,cvMain.height);
+    records.forEach(applyRecord);
+  });
+
+  // Room events
+  socket.on('room-users',  updateUsers);
+  socket.on('user-joined', u=>{ toast('👤 انضم: '+u.name); });
+  socket.on('user-left',   ({userId})=>{ removeCursor(userId); });
+
+  // Cursor
+  socket.on('cursor', showCursor);
+
+  // Undo from server
+  socket.on('canvas-replay', records=>{
+    ctxMain.clearRect(0,0,cvMain.width,cvMain.height);
+    records.forEach(applyRecord);
+  });
+}
+
+function setConnected(ok){
+  ['ciDot','connDotLobby'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.className='ci-dot'+(ok?'':' off');
+  });
+  document.getElementById('ciTxt').textContent=ok?'متصل':'غير متصل';
+  document.getElementById('connTxtLobby').textContent=ok?'متصل':'جاري الاتصال…';
+  document.getElementById('sbDot').className='sb-dot'+(ok?'':' off');
+  document.getElementById('sbTxt').textContent=ok?'متصل':'غير متصل';
+}
+
+/* ─── LOBBY ───────────────────────────────────── */
+function setLoad(msg,sub=''){
+  document.getElementById('loadTxt').textContent=msg;
+  if(sub) document.getElementById('loadSub').textContent=sub;
+}
+
+function showLobby(){
+  const ls=document.getElementById('loadingScreen');
+  ls.classList.add('hide');
+  setTimeout(()=>{ls.style.display='none';},350);
+  document.getElementById('lobby').style.display='flex';
+}
+
+function generateId(n){
+  const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:n},()=>c[Math.random()*c.length|0]).join('');
+}
+
+function createRoom(){
+  if(!socket?.connected){toast('⚠️ السيرفر غير متصل');return;}
+  myName=document.getElementById('nameInput').value.trim()||('فنان '+generateId(3));
+  roomId=generateId(4);
+  doJoin(roomId,true);
+}
+
+function joinRoom(){
+  if(!socket?.connected){toast('⚠️ السيرفر غير متصل');return;}
+  const code=document.getElementById('codeInput').value.trim().toUpperCase();
+  if(code.length<3){toast('⚠️ أدخل كود الغرفة');return;}
+  myName=document.getElementById('nameInput').value.trim()||('فنان '+generateId(3));
+  roomId=code;
+  doJoin(roomId,true);
+}
+
+function doJoin(rid,showLoader){
+  if(showLoader){
+    document.getElementById('lobby').classList.add('hide');
+    setTimeout(()=>{document.getElementById('lobby').style.display='none';},350);
+    document.getElementById('loadingScreen').style.display='flex';
+    document.getElementById('loadingScreen').classList.remove('hide');
+    setLoad('الدخول إلى الغرفة…',rid);
+  }
+
+  myId=myId||generateId(12);
+
+  socket.emit('join-room',{roomId:rid,userId:myId,name:myName},(res)=>{
+    if(!res?.ok){toast('⚠️ خطأ في الدخول');showLobby();return;}
+    myColor=res.color;
+    updateUsers(res.users);
+    openApp(rid);
+  });
+}
+
+function openApp(rid){
+  const ls=document.getElementById('loadingScreen');
+  ls.classList.add('hide');
+  setTimeout(()=>{ls.style.display='none';},350);
+
+  document.getElementById('roomIdLbl').textContent=rid;
+  const url=new URL(location.href);
+  url.searchParams.set('room',rid);
+  history.pushState({},'',url);
+
+  document.getElementById('app').classList.add('on');
+  resizeAll();
+  toast('✅ دخلت الغرفة: '+rid);
+  if(typeof chatShow === 'function') chatShow();
+}
+
+function leaveRoom(){
+  if(socket) socket.disconnect();
+  location.search='';
+}
+
+/* ─── PALETTE & TOOLS ─────────────────────────── */
+function buildPalette(){
+  const g=document.getElementById('clrGrid');
+  PALETTE.forEach(c=>{
+    const d=document.createElement('div');
+    d.className='clr-swatch';
+    d.style.background=c;
+    d.onclick=()=>setColor(c);
+    g.appendChild(d);
+  });
+}
+
+function setColor(c){
+  curColor=c;
+  document.querySelectorAll('.clr-swatch').forEach(s=>{
+    s.classList.toggle('on',toHex(s.style.background)===c.toLowerCase());
+  });
+  document.getElementById('clrPreview').style.background=c;
+  try{document.getElementById('cpicker').value=c;}catch(_){}
+}
+
+function setSz(v){
+  curSz=v;
+  document.getElementById('szVal').textContent=v+'px';
+  document.getElementById('szSlider').value=v;
+}
+
+function setOp(v){
+  curOp=v/100;
+  document.getElementById('opVal').textContent=v+'%';
+}
+
+function setTool(t){
+  curTool=t;
+  document.querySelectorAll('.tbtn').forEach(b=>b.classList.toggle('on',b.dataset.tool===t));
+  document.getElementById('wrap').classList.toggle('eraser-active',t==='eraser');
+  const names={pen:'قلم',eraser:'ممحاة',line:'خط',rect:'مستطيل',circle:'دائرة',fill:'تعبئة'};
+  document.getElementById('sbTool').textContent=names[t]||t;
+}
+
+function toHex(rgb){
+  if(!rgb||rgb.startsWith('#'))return(rgb||'').toLowerCase();
+  const m=rgb.match(/\d+/g);
+  if(!m)return rgb;
+  return'#'+m.map(x=>(+x).toString(16).padStart(2,'0')).join('');
+}
+
+/* ─── RESIZE ──────────────────────────────────── */
+function resizeAll(){
+  const w=document.getElementById('wrap');
+  const W=w.clientWidth, H=w.clientHeight;
+  [cvMain,cvBase,cvPrev,cvOver].forEach(c=>{c.width=W;c.height=H;});
+}
+
+/* ─── INPUT EVENTS ────────────────────────────── */
+function pt(e){
+  const r=cvMain.getBoundingClientRect();
+  return{x:e.clientX-r.left,y:e.clientY-r.top};
+}
+
+function onDown(e){
+  const p=pt(e); lx=p.x; ly=p.y; sx=p.x; sy=p.y;
+  drawing=true; penSegments=[];
+
+  if(['line','rect','circle'].includes(curTool)){
+    saveUndoSnapshot();
+  }
+
+  if(curTool==='fill'){
+    saveUndoSnapshot();
+    floodFill(Math.round(p.x),Math.round(p.y),curColor,ctxMain);
+    socket.emit('fill',{x:Math.round(p.x),y:Math.round(p.y),color:curColor});
+    triggerSnapshot();
+    return;
+  }
+
+  if(curTool==='pen'||curTool==='eraser'){
+    saveUndoSnapshot();
+    penSegments.push(p.x,p.y);
+    strokeSegment(ctxMain,lx,ly,p.x,p.y);
+  }
+}
+
+function onMove(e){
+  const p=pt(e);
+  document.getElementById('coords').textContent=`${Math.round(p.x)}, ${Math.round(p.y)}`;
+
+  // Throttled cursor
+  const now=Date.now();
+  if(socket?.connected && now-lastCursorEmit>CURSOR_THROTTLE){
+    socket.emit('cursor',{x:p.x,y:p.y});
+    lastCursorEmit=now;
+  }
+
+  if(!drawing) return;
+
+  if(curTool==='pen'){
+    strokeSegment(ctxMain,lx,ly,p.x,p.y);
+    penSegments.push(p.x,p.y);
+    lx=p.x; ly=p.y;
+  } else if(curTool==='eraser'){
+    eraseSegment(ctxMain,lx,ly,p.x,p.y);
+    penSegments.push(p.x,p.y);
+    lx=p.x; ly=p.y;
+  } else if(curTool==='line'){
+    ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
+    ctxPrev.globalAlpha=curOp;
+    ctxPrev.strokeStyle=curColor;
+    ctxPrev.lineWidth=curSz;
+    ctxPrev.lineCap='round';
+    ctxPrev.beginPath();
+    ctxPrev.moveTo(sx,sy);
+    ctxPrev.lineTo(p.x,p.y);
+    ctxPrev.stroke();
+    ctxPrev.globalAlpha=1;
+  } else if(curTool==='rect'){
+    ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
+    ctxPrev.globalAlpha=curOp;
+    ctxPrev.strokeStyle=curColor;
+    ctxPrev.lineWidth=curSz;
+    ctxPrev.strokeRect(sx,sy,p.x-sx,p.y-sy);
+    ctxPrev.globalAlpha=1;
+  } else if(curTool==='circle'){
+    ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
+    const rx=(p.x-sx)/2, ry=(p.y-sy)/2;
+    ctxPrev.globalAlpha=curOp;
+    ctxPrev.strokeStyle=curColor;
+    ctxPrev.lineWidth=curSz;
+    ctxPrev.beginPath();
+    ctxPrev.ellipse(sx+rx,sy+ry,Math.abs(rx),Math.abs(ry),0,0,Math.PI*2);
+    ctxPrev.stroke();
+    ctxPrev.globalAlpha=1;
+  }
+}
+
+function onUp(e){
+  if(!drawing) return;
+  drawing=false;
+  const p=pt(e);
+
+  ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
+
+  if(curTool==='pen'||curTool==='eraser'){
+    // Emit entire stroke as one packet
+    if(penSegments.length>=2){
+      socket.emit('stroke',{
+        tool:curTool,
+        pts:penSegments,         // flat [x0,y0,x1,y1,...]
+        color:curColor,
+        sz:curSz,
+        op:curOp
+      });
+      triggerSnapshot();
+    }
+    penSegments=[];
+  } else if(curTool==='line'){
+    drawLine(ctxMain,sx,sy,p.x,p.y,curColor,curSz,curOp);
+    socket.emit('shape',{kind:'line',x1:sx,y1:sy,x2:p.x,y2:p.y,color:curColor,sz:curSz,op:curOp});
+    triggerSnapshot();
+  } else if(curTool==='rect'){
+    drawRect(ctxMain,sx,sy,p.x-sx,p.y-sy,curColor,curSz,curOp);
+    socket.emit('shape',{kind:'rect',x:sx,y:sy,w:p.x-sx,h:p.y-sy,color:curColor,sz:curSz,op:curOp});
+    triggerSnapshot();
+  } else if(curTool==='circle'){
+    drawCircle(ctxMain,sx,sy,p.x,p.y,curColor,curSz,curOp);
+    socket.emit('shape',{kind:'circle',x1:sx,y1:sy,x2:p.x,y2:p.y,color:curColor,sz:curSz,op:curOp});
+    triggerSnapshot();
+  }
+}
+
+function onLeave(e){ if(drawing) onUp(e); }
+
+/* ─── TOUCH ───────────────────────────────────── */
+function tp(e){const t=e.touches[0];return{clientX:t.clientX,clientY:t.clientY};}
+function onTStart(e){e.preventDefault();onDown(tp(e));}
+function onTMove(e){e.preventDefault();onMove(tp(e));}
+function onTEnd(e){e.preventDefault();onUp({clientX:lx+cvMain.getBoundingClientRect().left,clientY:ly+cvMain.getBoundingClientRect().top});}
+
+/* ─── DRAW HELPERS ────────────────────────────── */
+function strokeSegment(ctx,x1,y1,x2,y2){
+  ctx.globalCompositeOperation='source-over';
+  ctx.globalAlpha=curOp;
+  ctx.strokeStyle=curColor;
+  ctx.lineWidth=curSz;
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.globalAlpha=1;
+}
+
+function eraseSegment(ctx,x1,y1,x2,y2){
+  ctx.globalCompositeOperation='destination-out';
+  ctx.lineWidth=curSz*2.5;
+  ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.globalCompositeOperation='source-over';
+}
+
+function drawLine(ctx,x1,y1,x2,y2,c,sz,op){
+  ctx.globalAlpha=op;ctx.strokeStyle=c;ctx.lineWidth=sz;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.globalAlpha=1;
+}
+
+function drawRect(ctx,x,y,w,h,c,sz,op){
+  ctx.globalAlpha=op;ctx.strokeStyle=c;ctx.lineWidth=sz;
+  ctx.strokeRect(x,y,w,h);ctx.globalAlpha=1;
+}
+
+function drawCircle(ctx,x1,y1,x2,y2,c,sz,op){
+  const rx=(x2-x1)/2, ry=(y2-y1)/2;
+  ctx.globalAlpha=op;ctx.strokeStyle=c;ctx.lineWidth=sz;
+  ctx.beginPath();
+  ctx.ellipse(x1+rx,y1+ry,Math.abs(rx),Math.abs(ry),0,0,Math.PI*2);
+  ctx.stroke();ctx.globalAlpha=1;
+}
+
+/* ─── REMOTE DRAWING ──────────────────────────── */
+function remoteStroke({tool,pts,color,sz,op}){
+  if(!pts||pts.length<4) return;
+  for(let i=0;i<pts.length-2;i+=2){
+    if(tool==='eraser'){
+      const ctx=ctxMain;
+      const tmp_sz=curSz; curSz=sz;
+      eraseSegment(ctx,pts[i],pts[i+1],pts[i+2],pts[i+3]);
+      curSz=tmp_sz;
+    } else {
+      ctxMain.globalCompositeOperation='source-over';
+      ctxMain.globalAlpha=op||1;
+      ctxMain.strokeStyle=color;
+      ctxMain.lineWidth=sz;
+      ctxMain.lineCap='round';ctxMain.lineJoin='round';
+      ctxMain.beginPath();
+      ctxMain.moveTo(pts[i],pts[i+1]);
+      ctxMain.lineTo(pts[i+2],pts[i+3]);
+      ctxMain.stroke();
+      ctxMain.globalAlpha=1;
+    }
+  }
+}
+
+function remoteShape({kind,x1,y1,x2,y2,x,y,w,h,color,sz,op}){
+  if(kind==='line')   drawLine(ctxMain,x1,y1,x2,y2,color,sz,op||1);
+  if(kind==='rect')   drawRect(ctxMain,x,y,w,h,color,sz,op||1);
+  if(kind==='circle') drawCircle(ctxMain,x1,y1,x2,y2,color,sz,op||1);
+}
+
+function remoteFill({x,y,color}){
+  floodFill(x,y,color,ctxMain);
+}
+
+function remoteCtxClear(){
+  ctxMain.clearRect(0,0,cvMain.width,cvMain.height);
+  undoStack=[];redoStack=[];
+}
+
+function applyRecord(rec){
+  if(!rec) return;
+  if(rec.type==='stroke') remoteStroke(rec);
+  if(rec.type==='shape')  remoteShape(rec);
+  if(rec.type==='fill')   remoteFill(rec);
+}
+
+function applySnapshot(dataUrl){
+  return new Promise(res=>{
+    const img=new Image();
+    img.onload=()=>{ ctxMain.drawImage(img,0,0); res(); };
+    img.src=dataUrl;
+  });
+}
+
+/* ─── FLOOD FILL ──────────────────────────────── */
+function floodFill(startX,startY,fillColor,ctx){
+  const W=ctx.canvas.width, H=ctx.canvas.height;
+  const imgData=ctx.getImageData(0,0,W,H);
+  const d=imgData.data;
+  const idx=(startY*W+startX)*4;
+  const tR=d[idx],tG=d[idx+1],tB=d[idx+2],tA=d[idx+3];
+  const fc=hexToRgba(fillColor);
+  if(!fc) return;
+  if(fc.r===tR&&fc.g===tG&&fc.b===tB&&tA>200) return;
+
+  const tol=40;
+  const stack=[[startX,startY]];
+  const vis=new Uint8Array(W*H);
+
+  while(stack.length){
+    const [cx,cy]=stack.pop();
+    if(cx<0||cx>=W||cy<0||cy>=H) continue;
+    const si=cy*W+cx;
+    if(vis[si]) continue;
+    const pi=si*4;
+    if(Math.abs(d[pi]-tR)>tol||Math.abs(d[pi+1]-tG)>tol||
+       Math.abs(d[pi+2]-tB)>tol||Math.abs(d[pi+3]-tA)>tol) continue;
+    vis[si]=1;
+    d[pi]=fc.r;d[pi+1]=fc.g;d[pi+2]=fc.b;d[pi+3]=255;
+    stack.push([cx+1,cy],[cx-1,cy],[cx,cy+1],[cx,cy-1]);
+  }
+  ctx.putImageData(imgData,0,0);
+}
+
+function hexToRgba(hex){
+  const r=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return r?{r:parseInt(r[1],16),g:parseInt(r[2],16),b:parseInt(r[3],16)}:null;
+}
+
+/* ─── UNDO / REDO ─────────────────────────────── */
+const MAX_UNDO=20;
+
+function saveUndoSnapshot(){
+  const snap=ctxMain.getImageData(0,0,cvMain.width,cvMain.height);
+  undoStack.push(snap);
+  if(undoStack.length>MAX_UNDO) undoStack.shift();
+  redoStack=[];
+}
+
+function undo(){
+  if(!undoStack.length){toast('لا يوجد المزيد للتراجع');return;}
+  const cur=ctxMain.getImageData(0,0,cvMain.width,cvMain.height);
+  redoStack.push(cur);
+  const snap=undoStack.pop();
+  ctxMain.putImageData(snap,0,0);
+  if(socket?.connected) socket.emit('undo');
+}
+
+function redo(){
+  if(!redoStack.length){toast('لا يوجد للإعادة');return;}
+  const cur=ctxMain.getImageData(0,0,cvMain.width,cvMain.height);
+  undoStack.push(cur);
+  const snap=redoStack.pop();
+  ctxMain.putImageData(snap,0,0);
+}
+
+/* ─── CLEAR ───────────────────────────────────── */
+function askClear(){
+  if(!confirm('مسح اللوحة بالكامل للجميع؟')) return;
+  ctxMain.clearRect(0,0,cvMain.width,cvMain.height);
+  undoStack=[];redoStack=[];
+  if(socket?.connected) socket.emit('clear');
+}
+
+/* ─── SNAPSHOT UPLOAD ─────────────────────────── */
+function triggerSnapshot(){
+  snapshotCounter++;
+  if(snapshotCounter>=SNAPSHOT_EVERY && socket?.connected){
+    snapshotCounter=0;
+    const dataUrl=cvMain.toDataURL('image/png',0.7);
+    socket.emit('snapshot',{dataUrl});
+  }
+}
+
+/* ─── USERS LIST ──────────────────────────────── */
+function updateUsers(list){
+  const ul=document.getElementById('usersList');
+  ul.innerHTML='';
+  document.getElementById('roomUsersCount').textContent=list.length+' مستخدم';
+  list.forEach(u=>{
+    const isMe=u.id===myId;
+    const initials=(u.name||'?').trim().slice(0,2);
+    const div=document.createElement('div');
+    div.className='user-item';
+    div.innerHTML=`
+      <div class="user-avatar" style="background:${u.color||'#5b8af0'}">${initials}</div>
+      <span class="user-name">${u.name||'زائر'}</span>
+      ${isMe?'<span class="user-me">أنت</span>':''}
+      <div class="user-online"></div>`;
+    ul.appendChild(div);
+  });
+}
+
+/* ─── REMOTE CURSORS ──────────────────────────── */
+const cursorEls={}, cursorTimers={};
+
+function showCursor({userId:uid,name,color,x,y}){
+  if(uid===myId) return;
+  if(!cursorEls[uid]){
+    const el=document.createElement('div');
+    el.className='r-cursor';
+    el.innerHTML=`<span class="r-cursor-arrow" style="color:${color}">➤</span>
+      <span class="r-cursor-lbl" style="background:${color}">${name||'زائر'}</span>`;
+    document.getElementById('wrap').appendChild(el);
+    cursorEls[uid]=el;
+  }
+  const el=cursorEls[uid];
+  el.style.left=x+'px'; el.style.top=y+'px'; el.style.opacity='1';
+  clearTimeout(cursorTimers[uid]);
+  cursorTimers[uid]=setTimeout(()=>{ if(el) el.style.opacity='0'; },4000);
+}
+
+function removeCursor(uid){
+  if(cursorEls[uid]){cursorEls[uid].remove();delete cursorEls[uid];}
+}
+
+/* ─── COPY LINK ───────────────────────────────── */
+function copyLink(){
+  navigator.clipboard.writeText(location.href)
+    .then(()=>toast('✅ تم نسخ الرابط!'))
+    .catch(()=>toast('تعذّر النسخ'));
+}
+
+/* ─── TOAST ───────────────────────────────────── */
+let toastT;
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('on');
+  clearTimeout(toastT);
+  toastT=setTimeout(()=>el.classList.remove('on'),2800);
+}
+
+/* ─── KEYBOARD ────────────────────────────────── */
+function onKey(e){
+  if(!document.getElementById('app').classList.contains('on')) return;
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  const k=e.key;
+  if(k==='p') setTool('pen');
+  if(k==='e') setTool('eraser');
+  if(k==='l') setTool('line');
+  if(k==='r') setTool('rect');
+  if(k==='c') setTool('circle');
+  if(k==='f') setTool('fill');
+  if(k==='[') setSz(Math.max(1,curSz-2));
+  if(k===']') setSz(Math.min(64,curSz+2));
+  if((e.ctrlKey||e.metaKey)&&k==='z'){e.preventDefault();undo();}
+  if((e.ctrlKey||e.metaKey)&&(k==='y'||k==='Z')){e.preventDefault();redo();}
+}
+</script>
+
+<!-- ═══════════════════════════════════════════════
+     LIVE CHAT — Glassmorphism / Neon
+═══════════════════════════════════════════════ -->
+<style>
+/* ── Chat container ── */
+#chat-widget{
+  position:fixed;
+  bottom:16px;
+  left:16px;
+  width:320px;
+  max-width:calc(100vw - 32px);
+  z-index:500;
+  display:none;          /* hidden until user joins a room */
+  flex-direction:column;
+  border-radius:16px;
+  overflow:hidden;
+  font-family:var(--font);
+  /* Glassmorphism */
+  background:rgba(13,16,28,0.72);
+  backdrop-filter:blur(18px) saturate(1.6);
+  -webkit-backdrop-filter:blur(18px) saturate(1.6);
+  border:1px solid rgba(91,138,240,0.22);
+  box-shadow:
+    0 0 0 1px rgba(91,138,240,0.08),
+    0 8px 32px rgba(0,0,0,0.55),
+    0 0 60px rgba(91,138,240,0.06);
+  transition:box-shadow .3s;
+}
+#chat-widget.show{ display:flex; }
+#chat-widget:focus-within{
+  box-shadow:
+    0 0 0 1px rgba(91,138,240,0.35),
+    0 8px 40px rgba(0,0,0,0.65),
+    0 0 80px rgba(91,138,240,0.14);
+}
+
+/* ── Header ── */
+#chat-header{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:11px 14px;
+  background:rgba(91,138,240,0.07);
+  border-bottom:1px solid rgba(91,138,240,0.14);
+  cursor:pointer;
+  user-select:none;
+  flex-shrink:0;
+}
+#chat-header-icon{
+  font-size:16px;
+  line-height:1;
+  /* neon glow */
+  filter:drop-shadow(0 0 6px rgba(91,138,240,.8));
+}
+#chat-header-title{
+  flex:1;
+  font-size:13px;
+  font-weight:600;
+  color:var(--txt0);
+  letter-spacing:.2px;
+}
+#chat-badge{
+  display:none;
+  min-width:18px;
+  height:18px;
+  padding:0 5px;
+  border-radius:9px;
+  background:var(--accent);
+  color:#fff;
+  font-size:10px;
+  font-weight:700;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 0 8px rgba(91,138,240,.7);
+  animation:badgePop .25s cubic-bezier(.4,0,.2,1);
+}
+#chat-badge.show{ display:flex; }
+@keyframes badgePop{from{transform:scale(.5)}to{transform:scale(1)}}
+
+#chat-toggle-icon{
+  font-size:11px;
+  color:var(--txt2);
+  transition:transform .2s;
+}
+#chat-widget.collapsed #chat-toggle-icon{ transform:rotate(180deg); }
+
+/* ── Body (messages + input) ── */
+#chat-body{
+  display:flex;
+  flex-direction:column;
+  max-height:360px;
+  transition:max-height .3s cubic-bezier(.4,0,.2,1), opacity .25s;
+}
+#chat-widget.collapsed #chat-body{
+  max-height:0;
+  opacity:0;
+  overflow:hidden;
+  pointer-events:none;
+}
+
+/* ── Messages area ── */
+#chat-messages{
+  flex:1;
+  overflow-y:auto;
+  padding:10px 10px 4px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  max-height:280px;
+  min-height:60px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(91,138,240,.3) transparent;
+}
+#chat-messages::-webkit-scrollbar{ width:4px; }
+#chat-messages::-webkit-scrollbar-track{ background:transparent; }
+#chat-messages::-webkit-scrollbar-thumb{ background:rgba(91,138,240,.3); border-radius:4px; }
+
+/* ── Empty state ── */
+#chat-empty{
+  margin:auto;
+  text-align:center;
+  color:var(--txt3);
+  font-size:12px;
+  padding:20px 0;
+  line-height:1.8;
+}
+#chat-empty span{ font-size:28px; display:block; margin-bottom:4px; filter:drop-shadow(0 0 8px rgba(91,138,240,.5)); }
+
+/* ── Individual message ── */
+.chat-msg{
+  display:flex;
+  flex-direction:column;
+  max-width:82%;
+  animation:msgSlideIn .22s cubic-bezier(.4,0,.2,1);
+}
+@keyframes msgSlideIn{
+  from{opacity:0;transform:translateY(8px) scale(.97)}
+  to{opacity:1;transform:none}
+}
+
+/* Mine → right side */
+.chat-msg.mine{
+  align-self:flex-end;
+  align-items:flex-end;
+}
+/* Others → left side */
+.chat-msg.other{
+  align-self:flex-start;
+  align-items:flex-start;
+}
+
+.chat-msg-meta{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  margin-bottom:3px;
+  flex-direction:row;
+}
+.chat-msg.mine .chat-msg-meta{ flex-direction:row-reverse; }
+
+.chat-msg-avatar{
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:10px;
+  font-weight:700;
+  color:#fff;
+  flex-shrink:0;
+  box-shadow:0 0 8px currentColor;
+}
+.chat-msg-name{
+  font-size:10px;
+  font-weight:600;
+  opacity:.75;
+}
+.chat-msg-time{
+  font-size:9px;
+  color:var(--txt3);
+}
+
+.chat-msg-bubble{
+  padding:7px 10px;
+  border-radius:12px;
+  font-size:12.5px;
+  line-height:1.55;
+  color:var(--txt0);
+  word-break:break-word;
+  white-space:pre-wrap;
+  position:relative;
+}
+
+/* Mine bubble — neon accent */
+.chat-msg.mine .chat-msg-bubble{
+  background:rgba(91,138,240,0.22);
+  border:1px solid rgba(91,138,240,0.35);
+  border-bottom-right-radius:4px;
+  box-shadow:0 0 12px rgba(91,138,240,0.12);
+}
+
+/* Others bubble — subtle glass */
+.chat-msg.other .chat-msg-bubble{
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.10);
+  border-bottom-left-radius:4px;
+}
+
+/* ── Input area ── */
+#chat-input-area{
+  display:flex;
+  align-items:flex-end;
+  gap:6px;
+  padding:8px 10px;
+  border-top:1px solid rgba(255,255,255,0.07);
+  background:rgba(0,0,0,0.18);
+}
+#chat-input{
+  flex:1;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.10);
+  border-radius:10px;
+  padding:8px 11px;
+  color:var(--txt0);
+  font-family:var(--font);
+  font-size:12.5px;
+  line-height:1.4;
+  resize:none;
+  outline:none;
+  max-height:80px;
+  min-height:36px;
+  overflow-y:auto;
+  transition:border-color .2s, box-shadow .2s;
+  scrollbar-width:none;
+}
+#chat-input::-webkit-scrollbar{ display:none; }
+#chat-input::placeholder{ color:var(--txt3); }
+#chat-input:focus{
+  border-color:rgba(91,138,240,0.5);
+  box-shadow:0 0 0 2px rgba(91,138,240,0.12);
+  background:rgba(255,255,255,0.09);
+}
+#chat-send{
+  flex-shrink:0;
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  border:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--accent);
+  color:#fff;
+  font-size:15px;
+  transition:background .2s, transform .15s, box-shadow .2s;
+  box-shadow:0 0 12px rgba(91,138,240,.4);
+}
+#chat-send:hover{
+  background:var(--accent-h);
+  box-shadow:0 0 18px rgba(91,138,240,.6);
+  transform:scale(1.07);
+}
+#chat-send:active{ transform:scale(.94); }
+#chat-send:disabled{
+  opacity:.35;
+  cursor:default;
+  transform:none;
+  box-shadow:none;
+}
+
+/* ── Mobile responsive ── */
+@media(max-width:480px){
+  #chat-widget{
+    bottom:0;
+    left:0;
+    right:0;
+    width:100%;
+    max-width:100%;
+    border-radius:16px 16px 0 0;
+  }
+}
+
+/* ── Neon line at top of widget ── */
+#chat-widget::before{
+  content:'';
+  position:absolute;
+  top:0; left:10%; right:10%;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(91,138,240,.8),transparent);
+  pointer-events:none;
+}
+</style>
+
+<!-- Chat HTML -->
+<div id="chat-widget" role="complementary" aria-label="دردشة مباشرة">
+  <div id="chat-header" onclick="chatToggle()" aria-expanded="true">
+    <span id="chat-header-icon">💬</span>
+    <span id="chat-header-title">دردشة الغرفة</span>
+    <span id="chat-badge" aria-live="polite"></span>
+    <span id="chat-toggle-icon">▲</span>
+  </div>
+  <div id="chat-body">
+    <div id="chat-messages" aria-live="polite" aria-label="الرسائل">
+      <div id="chat-empty">
+        <span>💬</span>
+        لا توجد رسائل بعد<br>كن أول من يبدأ المحادثة!
+      </div>
+    </div>
+    <div id="chat-input-area">
+      <textarea
+        id="chat-input"
+        placeholder="اكتب رسالة…"
+        rows="1"
+        maxlength="500"
+        aria-label="كتابة رسالة"
+        autocomplete="off"
+        spellcheck="false"
+      ></textarea>
+      <button id="chat-send" title="إرسال" disabled aria-label="إرسال">➤</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════
+   LIVE CHAT MODULE
+   Depends on: `socket` (global), `myId`, `myName`, `myColor`
+═══════════════════════════════════════════ */
+(function ChatModule(){
+  /* ── DOM refs ── */
+  const widget   = document.getElementById('chat-widget');
+  const messages = document.getElementById('chat-messages');
+  const empty    = document.getElementById('chat-empty');
+  const input    = document.getElementById('chat-input');
+  const sendBtn  = document.getElementById('chat-send');
+  const badge    = document.getElementById('chat-badge');
+
+  let isCollapsed   = false;
+  let unreadCount   = 0;
+  let isWidgetVisible = false;
+
+  /* ── Audio: soft ping on new message ── */
+  const audioCtx = window.AudioContext ? new AudioContext() : null;
+  function playPing(){
+    if(!audioCtx) return;
+    try{
+      const osc  = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(660, audioCtx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.07, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+      osc.start(audioCtx.currentTime);
+      osc.stop(audioCtx.currentTime + 0.25);
+    }catch(_){}
+  }
+  /* Resume audio on first interaction */
+  document.addEventListener('pointerdown', ()=>{ if(audioCtx?.state==='suspended') audioCtx.resume(); }, {once:true});
+
+  /* ── Show chat widget when user joins room ── */
+  window.chatShow = function(){
+    if(isWidgetVisible) return;
+    isWidgetVisible = true;
+    widget.classList.add('show');
+  };
+
+  /* ── Toggle collapse ── */
+  window.chatToggle = function(){
+    isCollapsed = !isCollapsed;
+    widget.classList.toggle('collapsed', isCollapsed);
+    if(!isCollapsed){
+      clearUnread();
+      scrollToBottom();
+      setTimeout(()=>input.focus(), 200);
+    }
+  };
+
+  /* ── Badge / unread ── */
+  function incrementUnread(){
+    if(!isCollapsed) return;
+    unreadCount++;
+    badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+    badge.classList.add('show');
+  }
+  function clearUnread(){
+    unreadCount = 0;
+    badge.classList.remove('show');
+  }
+
+  /* ── Format timestamp ── */
+  function fmtTime(ts){
+    const d = new Date(ts);
+    const h = d.getHours().toString().padStart(2,'0');
+    const m = d.getMinutes().toString().padStart(2,'0');
+    return `${h}:${m}`;
+  }
+
+  /* ── Escape HTML ── */
+  function esc(s){
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ── Scroll to bottom ── */
+  function scrollToBottom(){
+    messages.scrollTop = messages.scrollHeight;
+  }
+  function isNearBottom(){
+    return messages.scrollHeight - messages.scrollTop - messages.clientHeight < 60;
+  }
+
+  /* ── Render a single message ── */
+  function renderMessage(msg){
+    const isMine = msg.userId === myId;
+    const initials = (msg.name||'?').charAt(0).toUpperCase();
+    const near = isNearBottom();
+
+    /* Remove empty state */
+    if(empty && empty.parentNode) empty.remove();
+
+    const el = document.createElement('div');
+    el.className = 'chat-msg ' + (isMine ? 'mine' : 'other');
+    el.dataset.msgId = msg.id;
+    el.innerHTML = `
+      <div class="chat-msg-meta">
+        <div class="chat-msg-avatar" style="background:${esc(msg.color)};box-shadow:0 0 8px ${esc(msg.color)}88">${esc(initials)}</div>
+        <span class="chat-msg-name" style="color:${esc(msg.color)}">${esc(msg.name)}</span>
+        <span class="chat-msg-time">${fmtTime(msg.time)}</span>
+      </div>
+      <div class="chat-msg-bubble">${esc(msg.text)}</div>
+    `;
+    messages.appendChild(el);
+
+    if(near || isMine) scrollToBottom();
+  }
+
+  /* ── Render history (bulk) ── */
+  function renderHistory(msgs){
+    msgs.forEach(renderMessage);
+    scrollToBottom();
+  }
+
+  /* ── Send message ── */
+  function sendMessage(){
+    const text = input.value.trim();
+    if(!text) return;
+    if(!socket?.connected){ return; }
+    socket.emit('chat-message', { text }, ()=>{});
+    input.value = '';
+    input.style.height = '';
+    sendBtn.disabled = true;
+    input.focus();
+  }
+
+  /* ── Input events ── */
+  input.addEventListener('input', ()=>{
+    sendBtn.disabled = !input.value.trim();
+    /* Auto-grow textarea */
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 80) + 'px';
+  });
+
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter' && !e.shiftKey){
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  sendBtn.addEventListener('click', sendMessage);
+
+  /* ── Socket listeners (hooked after socket is ready) ── */
+  function hookSocket(){
+    if(!socket) return;
+
+    socket.on('chat-history', msgs=>{
+      renderHistory(msgs);
+    });
+
+    socket.on('chat-message', msg=>{
+      renderMessage(msg);
+      if(msg.userId !== myId){
+        playPing();
+        incrementUnread();
+      }
+    });
+  }
+
+  /* Poll for socket being available (socket is created async in original code) */
+  const socketWait = setInterval(()=>{
+    if(typeof socket !== 'undefined' && socket){
+      clearInterval(socketWait);
+      hookSocket();
+    }
+  }, 200);
+
+})();
+</script>
+</body>
+</html>
