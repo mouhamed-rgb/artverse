@@ -16,7 +16,7 @@ const io = new Server(server, {
   maxHttpBufferSize: 5e6
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 
 // ─── DATA MODEL ───────────────────────────────────────────────────────────────
 const PALETTE      = ['#6c8fff','#ff6b9d','#4ecca3','#feca57','#ff9f43','#a29bfe','#48dbfb','#f8a5c2','#78e08f','#e55039'];
@@ -182,4 +182,7 @@ app.get('/api/stats', (_req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🎨 SketchSync v2 → http://localhost:${PORT}`));
+
+server.listen(PORT, () => {
+  console.log(`🎨 SketchSync v2 running on port ${PORT}`);
+});
