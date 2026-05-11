@@ -503,29 +503,162 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* ═══════════════════════════════════════════════
-   MOBILE
+   MOBILE DRAWER
 ═══════════════════════════════════════════════ */
 @media(max-width:680px){
-  #app.on{flex-direction:column-reverse}
-  .sidebar{
-    width:100%;height:auto;max-height:44vh;
-    flex-direction:row;flex-wrap:wrap;
-    border-left:none;border-top:1px solid var(--border1);
-    overflow-x:auto;overflow-y:hidden;
-    padding:12px;gap:10px;align-items:flex-start;
-    background:rgba(8,10,16,.95);
+  #app.on{
+    flex-direction:column;
+    position:relative;
   }
-  .sb-brand,.sec-lbl,.users-list,.room-panel,.conn-indicator,.spacer,
-  .abtn.danger,.ur-row,.sb-ver{display:none!important}
-  .clr-grid{grid-template-columns:repeat(10,32px)}
-  .clr-swatch{width:32px;height:32px}
+
+  /* Canvas takes full screen */
+  .canvas-wrap{
+    flex:1;
+    width:100vw;
+    height:100vh;
+    position:relative;
+  }
+
+  /* Sidebar becomes a bottom drawer */
+  .sidebar{
+    position:fixed;
+    bottom:0;left:0;right:0;
+    z-index:100;
+    width:100%;
+    height:auto;
+    max-height:72vh;
+    flex-direction:column;
+    border-left:none;
+    border-top:1px solid var(--border2);
+    border-radius:20px 20px 0 0;
+    overflow-y:auto;overflow-x:hidden;
+    padding:0 14px 20px;
+    gap:10px;
+    background:rgba(8,10,16,.97);
+    backdrop-filter:blur(24px);
+    box-shadow:0 -8px 40px rgba(0,0,0,.7),0 -1px 0 var(--border2);
+    transform:translateY(calc(100% - 52px));
+    transition:transform .35s cubic-bezier(.4,0,.2,1);
+    will-change:transform;
+  }
+
+  /* Drawer is open */
+  .sidebar.drawer-open{
+    transform:translateY(0);
+  }
+
+  /* Drag handle bar */
+  .sidebar::before{
+    content:'';
+    display:block;
+    width:40px;height:4px;
+    background:var(--border2);
+    border-radius:4px;
+    margin:10px auto 6px;
+    flex-shrink:0;
+  }
+
+  /* Toolbar strip always visible at bottom (52px) */
+  .mobile-toolbar-strip{
+    display:flex !important;
+    align-items:center;
+    gap:8px;
+    padding:8px 0 4px;
+    flex-shrink:0;
+    width:100%;
+  }
+
+  /* Quick tool buttons in the strip */
+  .mobile-tool-btn{
+    display:flex !important;
+    align-items:center;justify-content:center;
+    width:38px;height:38px;
+    border-radius:var(--r12);
+    background:rgba(255,255,255,.05);
+    border:1px solid var(--border1);
+    font-size:18px;
+    cursor:pointer;
+    flex-shrink:0;
+    transition:all .15s;
+  }
+  .mobile-tool-btn.on{
+    background:var(--accent-g);
+    border-color:var(--accent);
+    box-shadow:0 0 12px #6c8fff30;
+  }
+  .mobile-tool-btn:active{transform:scale(.88)}
+
+  /* Toggle button */
+  #mobileDrawerToggle{
+    display:flex !important;
+    align-items:center;justify-content:center;
+    width:38px;height:38px;min-width:38px;
+    border-radius:var(--r12);
+    background:var(--accent-g);
+    border:1px solid var(--accent);
+    color:var(--accent);
+    font-size:18px;
+    cursor:pointer;
+    transition:all .2s;
+    flex-shrink:0;
+    box-shadow:0 0 14px #6c8fff25;
+  }
+
+  /* Color dot in strip */
+  #mobileCurColor{
+    display:flex !important;
+    width:32px;height:32px;min-width:32px;
+    border-radius:50%;
+    border:2px solid rgba(255,255,255,.3);
+    cursor:pointer;
+    flex-shrink:0;
+    transition:box-shadow .15s;
+    box-shadow:0 0 10px currentColor;
+  }
+
+  /* Drawer inner content */
+  .drawer-inner{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    width:100%;
+  }
+
+  /* Hide rarely needed items in drawer */
+  .sb-brand,.users-list,.conn-indicator,.spacer,.sb-ver,
+  [style*="margin-top:4px"]{display:none!important}
+
+  .sec-lbl{margin:8px 0 5px;font-size:9px}
+  .clr-grid{grid-template-columns:repeat(10,1fr);gap:5px}
+  .clr-swatch{width:100%;aspect-ratio:1}
   .tools-grid{grid-template-columns:repeat(6,1fr);width:100%}
-  .tbtn{padding:8px 4px;border-radius:var(--r8)}
+  .tbtn{padding:8px 4px;border-radius:var(--r8);font-size:10px}
   .sl-wrap{width:100%}
-  .status-bar{bottom:10px;font-size:10px;padding:5px 14px}
+  .ur-row{display:flex}
+  .abtn.danger{display:flex!important}
+  .room-panel{display:block!important}
+
+  .status-bar{bottom:60px;font-size:10px;padding:5px 14px;z-index:50}
   .lobby-wrap{padding:0 4px}
   .card{padding:20px;border-radius:var(--r16)}
+
+  /* Pan mode indicator */
+  #panModeBtn{
+    display:flex !important;
+  }
 }
+
+/* Hide mobile elements on desktop */
+.mobile-toolbar-strip,
+#mobileDrawerToggle,
+#mobileCurColor,
+#panModeBtn{
+  display:none;
+}
+
+/* Pan cursor */
+.pan-mode #cvMain{cursor:grab !important}
+.pan-mode #cvMain:active{cursor:grabbing !important}
 </style>
 </head>
 <body>
@@ -580,7 +713,21 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
 <div id="app">
 
   <!-- SIDEBAR -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Mobile quick toolbar strip (always visible at bottom) -->
+    <div class="mobile-toolbar-strip" id="mobileStrip">
+      <button id="mobileDrawerToggle" onclick="toggleDrawer()" title="الأدوات">🎨</button>
+      <div id="mobileCurColor" onclick="document.getElementById('cpicker').click()" title="اللون"></div>
+      <button class="mobile-tool-btn on" data-tool="pen"    onclick="setTool('pen');setActiveMobileBtn(this)"    title="قلم">✏️</button>
+      <button class="mobile-tool-btn"    data-tool="eraser" onclick="setTool('eraser');setActiveMobileBtn(this)" title="ممحاة">🧹</button>
+      <button class="mobile-tool-btn"    data-tool="line"   onclick="setTool('line');setActiveMobileBtn(this)"   title="خط">📏</button>
+      <button class="mobile-tool-btn"    data-tool="rect"   onclick="setTool('rect');setActiveMobileBtn(this)"   title="مستطيل">⬜</button>
+      <button class="mobile-tool-btn"    data-tool="circle" onclick="setTool('circle');setActiveMobileBtn(this)" title="دائرة">⭕</button>
+      <button class="mobile-tool-btn"    id="panModeBtn"    onclick="togglePanMode()"                            title="تحريك">🤚</button>
+    </div>
+
+    <div class="drawer-inner">
     <div class="sb-brand">
       <span class="sb-icon">🎨</span>
       <div>
@@ -647,6 +794,8 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
     </div>
 
     <button class="abtn" onclick="leaveRoom()" style="margin-top:4px;color:var(--txt3)">← مغادرة</button>
+
+    </div><!-- /.drawer-inner -->
   </aside>
 
   <!-- CANVAS -->
@@ -722,6 +871,18 @@ window.onload=()=>{
   cvMain.addEventListener('touchstart', onTStart,{passive:false});
   cvMain.addEventListener('touchmove',  onTMove,{passive:false});
   cvMain.addEventListener('touchend',   onTEnd,{passive:false});
+
+  // Sidebar swipe-up to open drawer on mobile
+  const sidebar = document.getElementById('sidebar');
+  let swipeStartY = 0;
+  sidebar.addEventListener('touchstart', e=>{
+    swipeStartY = e.touches[0].clientY;
+  },{passive:true});
+  sidebar.addEventListener('touchend', e=>{
+    const dy = swipeStartY - e.changedTouches[0].clientY;
+    if(dy > 30 && !drawerOpen) toggleDrawer();
+    else if(dy < -30 && drawerOpen) toggleDrawer();
+  },{passive:true});
 
   document.addEventListener('keydown', onKey);
   document.getElementById('cpicker').addEventListener('input',e=>setColor(e.target.value));
@@ -900,6 +1061,7 @@ function setColor(c){
   });
   document.getElementById('clrPreview').style.background=c;
   try{document.getElementById('cpicker').value=c;}catch(_){}
+  syncMobileColor();
 }
 
 function setSz(v){
@@ -921,6 +1083,50 @@ function setTool(t){
   document.getElementById('sbTool').textContent=names[t]||t;
 }
 
+/* ─── MOBILE DRAWER ───────────────────────────── */
+let drawerOpen = false;
+
+function toggleDrawer(){
+  drawerOpen = !drawerOpen;
+  const sidebar = document.getElementById('sidebar');
+  const btn = document.getElementById('mobileDrawerToggle');
+  sidebar.classList.toggle('drawer-open', drawerOpen);
+  if(btn) btn.style.background = drawerOpen ? 'var(--accent)' : '';
+
+  // Close drawer when tapping outside
+  if(drawerOpen){
+    setTimeout(()=>{
+      document.addEventListener('pointerdown', closeDrawerOutside, {once:true, capture:true});
+    }, 50);
+  }
+}
+
+function closeDrawerOutside(e){
+  const sidebar = document.getElementById('sidebar');
+  if(!sidebar.contains(e.target)){
+    drawerOpen = false;
+    sidebar.classList.remove('drawer-open');
+    const btn = document.getElementById('mobileDrawerToggle');
+    if(btn) btn.style.background = '';
+  }
+}
+
+function setActiveMobileBtn(el){
+  document.querySelectorAll('.mobile-tool-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  // Also close drawer when tool picked on mobile
+  if(window.innerWidth <= 680 && drawerOpen) toggleDrawer();
+}
+
+// Sync mobile color dot with current color
+function syncMobileColor(){
+  const dot = document.getElementById('mobileCurColor');
+  if(dot){
+    dot.style.background = curColor;
+    dot.style.boxShadow = `0 0 10px ${curColor}88`;
+  }
+}
+
 function toHex(rgb){
   if(!rgb||rgb.startsWith('#'))return(rgb||'').toLowerCase();
   const m=rgb.match(/\d+/g);
@@ -938,7 +1144,7 @@ function resizeAll(){
 /* ─── INPUT EVENTS ────────────────────────────── */
 function pt(e){
   const r=cvMain.getBoundingClientRect();
-  return{x:e.clientX-r.left,y:e.clientY-r.top};
+  return{x:e.clientX-r.left-panDeltaX,y:e.clientY-r.top-panDeltaY};
 }
 
 function onDown(e){
@@ -1054,10 +1260,82 @@ function onUp(e){
 function onLeave(e){ if(drawing) onUp(e); }
 
 /* ─── TOUCH ───────────────────────────────────── */
-function tp(e){const t=e.touches[0];return{clientX:t.clientX,clientY:t.clientY};}
-function onTStart(e){e.preventDefault();onDown(tp(e));}
-function onTMove(e){e.preventDefault();onMove(tp(e));}
-function onTEnd(e){e.preventDefault();onUp({clientX:lx+cvMain.getBoundingClientRect().left,clientY:ly+cvMain.getBoundingClientRect().top});}
+let panMode = false;
+let panStartX = 0, panStartY = 0;
+let panOffsetX = 0, panOffsetY = 0;
+let panDeltaX = 0, panDeltaY = 0;
+let isPanning = false;
+
+function togglePanMode(){
+  panMode = !panMode;
+  const btn = document.getElementById('panModeBtn');
+  if(btn) btn.classList.toggle('on', panMode);
+  document.getElementById('wrap').classList.toggle('pan-mode', panMode);
+  toast(panMode ? '🤚 وضع التحريك — اسحب للتنقل في اللوحة' : '✏️ وضع الرسم');
+}
+
+function applyPanTransform(){
+  [cvMain,cvBase,cvPrev,cvOver].forEach(c=>{
+    c.style.transform = `translate(${panDeltaX}px, ${panDeltaY}px)`;
+  });
+}
+
+function tp(e){
+  const t=e.touches[0];
+  const r=cvMain.getBoundingClientRect();
+  return{clientX:t.clientX,clientY:t.clientY,x:t.clientX-r.left-panDeltaX,y:t.clientY-r.top-panDeltaY};
+}
+
+function onTStart(e){
+  e.preventDefault();
+  // Two-finger = always pan
+  if(e.touches.length === 2){
+    isPanning = true;
+    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    panStartX = cx - panDeltaX;
+    panStartY = cy - panDeltaY;
+    return;
+  }
+  if(panMode){
+    isPanning = true;
+    panStartX = e.touches[0].clientX - panDeltaX;
+    panStartY = e.touches[0].clientY - panDeltaY;
+    return;
+  }
+  const p = tp(e);
+  onDown({clientX: p.clientX, clientY: p.clientY});
+}
+
+function onTMove(e){
+  e.preventDefault();
+  // Two-finger or pan mode
+  if(e.touches.length === 2 || (isPanning && panMode)){
+    const cx = e.touches.length === 2
+      ? (e.touches[0].clientX + e.touches[1].clientX) / 2
+      : e.touches[0].clientX;
+    const cy = e.touches.length === 2
+      ? (e.touches[0].clientY + e.touches[1].clientY) / 2
+      : e.touches[0].clientY;
+    panDeltaX = cx - panStartX;
+    panDeltaY = cy - panStartY;
+    applyPanTransform();
+    return;
+  }
+  if(isPanning) return;
+  const p = tp(e);
+  onMove({clientX: p.clientX, clientY: p.clientY});
+}
+
+function onTEnd(e){
+  e.preventDefault();
+  if(isPanning){
+    isPanning = false;
+    return;
+  }
+  const r = cvMain.getBoundingClientRect();
+  onUp({clientX: lx + r.left + panDeltaX, clientY: ly + r.top + panDeltaY});
+}
 
 /* ─── DRAW HELPERS ────────────────────────────── */
 function strokeSegment(ctx,x1,y1,x2,y2){
