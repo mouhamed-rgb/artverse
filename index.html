@@ -1009,6 +1009,24 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
       <div style="width:1px;height:16px;background:var(--border2);margin:0 2px;"></div>
       <button class="ctbtn" id="gridBtn" onclick="toggleGrid()" title="الشبكة">⊞</button>
       <button class="ctbtn" onclick="downloadCanvas()" title="تحميل">⬇</button>
+      <div style="width:1px;height:16px;background:var(--border2);margin:0 2px;"></div>
+      <button class="ctbtn" id="camBtn" onclick="toggleCamera()" title="الرسم بالإصبع عبر الكاميرا" style="font-size:16px;">📷</button>
+    </div>
+
+    <!-- Camera Finger Drawing Overlay -->
+    <div id="cameraOverlay" style="display:none;position:absolute;inset:0;z-index:30;pointer-events:none;">
+      <video id="camVideo" autoplay playsinline muted
+        style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.22;border-radius:0;transform:scaleX(-1);"></video>
+      <canvas id="camCanvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
+      <!-- Close button -->
+      <button onclick="toggleCamera()" style="pointer-events:all;position:absolute;top:12px;right:12px;z-index:40;background:rgba(240,96,96,0.85);border:none;border-radius:50%;width:36px;height:36px;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px #f0606066;backdrop-filter:blur(6px);" title="إغلاق الكاميرا">✕</button>
+      <!-- Status badge -->
+      <div id="camStatus" style="pointer-events:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(10,12,20,0.82);border:1px solid var(--border2);border-radius:999px;padding:5px 16px;font-size:11px;font-family:var(--mono);color:var(--accent);backdrop-filter:blur(12px);display:flex;align-items:center;gap:8px;">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--accent3);box-shadow:0 0 8px var(--accent3);display:inline-block;animation:pulse 1.5s ease-in-out infinite;"></span>
+        <span id="camStatusTxt">جاري التحميل…</span>
+      </div>
+      <!-- Finger dot indicator -->
+      <div id="fingerDot" style="display:none;position:absolute;width:22px;height:22px;border-radius:50%;border:2px solid var(--accent3);box-shadow:0 0 16px var(--accent3),0 0 6px var(--accent3);background:rgba(78,204,163,0.18);transform:translate(-50%,-50%);pointer-events:none;transition:opacity .08s;"></div>
     </div>
 
     <!-- Text input overlay -->
@@ -2720,6 +2738,247 @@ function onKey(e){
       hookSocket();
     }
   }, 200);
+
+})();
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   FINGER DRAWING VIA CAMERA MODULE
+   Uses MediaPipe Hands (CDN) for real-time finger tracking
+═══════════════════════════════════════════════════ */
+(function CameraDrawModule(){
+  let camStream = null;
+  let isActive = false;
+  let rafCam = null;
+  let hands = null;
+  let handsReady = false;
+  let lastFX = null, lastFY = null;
+  let isDrawingFinger = false;
+  let pinchCooldown = 0;
+
+  const overlay   = document.getElementById('cameraOverlay');
+  const video     = document.getElementById('camVideo');
+  const camCvs    = document.getElementById('camCanvas');
+  const statusTxt = document.getElementById('camStatusTxt');
+  const fingerDot = document.getElementById('fingerDot');
+  const camBtn    = document.getElementById('camBtn');
+
+  /* ── Resize camCanvas to match wrap ── */
+  function resizeCamCanvas(){
+    const wrap = document.getElementById('wrap');
+    camCvs.width  = wrap.clientWidth;
+    camCvs.height = wrap.clientHeight;
+  }
+  window.addEventListener('resize', ()=>{ if(isActive) resizeCamCanvas(); });
+
+  /* ── Load MediaPipe Hands lazily ── */
+  function loadMediaPipe(cb){
+    if(window.Hands){cb();return;}
+    statusTxt.textContent = 'تحميل نموذج الذكاء الاصطناعي…';
+    const s1 = document.createElement('script');
+    s1.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
+    s1.onload = ()=>{
+      const s2 = document.createElement('script');
+      s2.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js';
+      s2.onload = cb;
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s1);
+  }
+
+  /* ── Init MediaPipe Hands ── */
+  function initHands(){
+    hands = new Hands({locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.6
+    });
+    hands.onResults(onHandResults);
+    handsReady = true;
+    statusTxt.textContent = 'ارفع إصبعك للرسم · اضغط بإصبعين للتوقف';
+  }
+
+  /* ── Map video coords → canvas coords (mirrored) ── */
+  function mapCoords(lm, w, h){
+    // Video is mirrored via CSS scaleX(-1), so flip x back
+    const x = (1 - lm.x) * w;
+    const y = lm.y * h;
+    return {x, y};
+  }
+
+  /* ── Distance between two landmarks ── */
+  function dist(a, b){
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  /* ── Process hand results ── */
+  function onHandResults(results){
+    if(!isActive) return;
+    const ctx = camCvs.getContext('2d');
+    ctx.clearRect(0, 0, camCvs.width, camCvs.height);
+
+    if(!results.multiHandLandmarks || results.multiHandLandmarks.length === 0){
+      lastFX = null; lastFY = null;
+      isDrawingFinger = false;
+      fingerDot.style.display = 'none';
+      return;
+    }
+
+    const lms = results.multiHandLandmarks[0];
+    const W = camCvs.width, H = camCvs.height;
+
+    // Index fingertip = landmark 8, thumb tip = 4
+    const indexTip = mapCoords(lms[8], W, H);
+    const thumbTip = mapCoords(lms[4], W, H);
+    const middleTip = mapCoords(lms[12], W, H);
+
+    // Pinch = index + thumb close → stop drawing
+    const pinchDist = dist(lms[8], lms[4]);
+    const isPinching = pinchDist < 0.055;
+
+    // Two fingers up = index + middle extended → draw
+    const indexUp = lms[8].y < lms[6].y;
+    const middleUp = lms[12].y < lms[10].y;
+    const thumbFolded = lms[4].y > lms[3].y || dist(lms[8], lms[4]) > 0.08;
+
+    const shouldDraw = indexUp && !isPinching;
+
+    // Show finger dot
+    fingerDot.style.display = 'block';
+    fingerDot.style.left = indexTip.x + 'px';
+    fingerDot.style.top  = indexTip.y + 'px';
+    fingerDot.style.borderColor = shouldDraw ? 'var(--accent3)' : 'var(--accent2)';
+    fingerDot.style.boxShadow = shouldDraw
+      ? '0 0 16px var(--accent3),0 0 6px var(--accent3)'
+      : '0 0 16px var(--accent2),0 0 6px var(--accent2)';
+
+    // Draw visual trail on camCanvas
+    ctx.beginPath();
+    ctx.arc(indexTip.x, indexTip.y, 8, 0, Math.PI*2);
+    ctx.fillStyle = shouldDraw ? 'rgba(78,204,163,0.35)' : 'rgba(255,107,157,0.25)';
+    ctx.fill();
+    ctx.strokeStyle = shouldDraw ? '#4ecca3' : '#ff6b9d';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Map finger position to main drawing canvas coordinates
+    const mainCvs = document.getElementById('cvMain');
+    const wrapEl  = document.getElementById('wrap');
+    const scaleX  = mainCvs.width  / wrapEl.clientWidth;
+    const scaleY  = mainCvs.height / wrapEl.clientHeight;
+    const drawX   = indexTip.x * scaleX;
+    const drawY   = indexTip.y * scaleY;
+
+    if(shouldDraw){
+      if(!isDrawingFinger || lastFX === null){
+        // Pen down
+        isDrawingFinger = true;
+        pushUndo();
+        ctxMain.beginPath();
+        ctxMain.moveTo(drawX, drawY);
+        ctxMain.strokeStyle = curColor;
+        ctxMain.lineWidth   = Math.max(curSz, 3);
+        ctxMain.lineCap     = 'round';
+        ctxMain.lineJoin    = 'round';
+        ctxMain.globalAlpha = curOp;
+      } else {
+        // Continue stroke
+        ctxMain.lineTo(drawX, drawY);
+        ctxMain.stroke();
+        ctxMain.beginPath();
+        ctxMain.moveTo(drawX, drawY);
+      }
+      lastFX = drawX; lastFY = drawY;
+    } else {
+      if(isDrawingFinger){
+        ctxMain.stroke();
+        isDrawingFinger = false;
+        lastFX = null; lastFY = null;
+        // Emit to socket if available
+        try{
+          if(socket && socket.connected && typeof roomId !== 'undefined' && roomId){
+            const snap = ctxMain.getImageData(0,0,mainCvs.width,mainCvs.height);
+            // lightweight: just trigger snapshot sync
+          }
+        }catch(_){}
+      }
+    }
+  }
+
+  /* ── Send video frames to MediaPipe ── */
+  async function processLoop(){
+    if(!isActive || !handsReady) return;
+    try{ await hands.send({image: video}); }catch(_){}
+    rafCam = requestAnimationFrame(processLoop);
+  }
+
+  /* ── Toggle camera on/off ── */
+  window.toggleCamera = async function(){
+    if(isActive){
+      stopCamera();
+    } else {
+      await startCamera();
+    }
+  };
+
+  async function startCamera(){
+    overlay.style.display = 'block';
+    camBtn.classList.add('on');
+    camBtn.style.color = 'var(--accent3)';
+    statusTxt.textContent = 'طلب إذن الكاميرا…';
+    resizeCamCanvas();
+
+    try{
+      camStream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} },
+        audio:false
+      });
+      video.srcObject = camStream;
+      await video.play();
+      isActive = true;
+      statusTxt.textContent = 'تحميل نموذج الذكاء الاصطناعي…';
+
+      loadMediaPipe(()=>{
+        initHands();
+        rafCam = requestAnimationFrame(processLoop);
+      });
+    } catch(e){
+      statusTxt.textContent = 'لا يمكن الوصول للكاميرا';
+      camBtn.classList.remove('on');
+      camBtn.style.color = '';
+      setTimeout(()=>{ overlay.style.display='none'; }, 2200);
+    }
+  }
+
+  function stopCamera(){
+    isActive = false;
+    handsReady = false;
+    if(rafCam){ cancelAnimationFrame(rafCam); rafCam=null; }
+    if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+    if(hands){ try{ hands.close(); }catch(_){} hands=null; }
+    isDrawingFinger = false;
+    lastFX=null; lastFY=null;
+    fingerDot.style.display='none';
+    overlay.style.display='none';
+    camBtn.classList.remove('on');
+    camBtn.style.color='';
+    const ctx = camCvs.getContext('2d');
+    ctx.clearRect(0,0,camCvs.width,camCvs.height);
+  }
+
+  /* ── pushUndo helper (reuse existing if available) ── */
+  function pushUndo(){
+    try{
+      if(typeof undoStack !== 'undefined'){
+        undoStack.push(ctxMain.getImageData(0,0,cvMain.width,cvMain.height));
+        if(undoStack.length>20) undoStack.shift();
+        redoStack.length=0;
+      }
+    }catch(_){}
+  }
 
 })();
 </script>
