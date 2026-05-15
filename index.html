@@ -2363,6 +2363,56 @@ function onKey(e){
   background:linear-gradient(90deg,transparent,rgba(108,143,255,.9),rgba(255,107,157,.6),transparent);
   pointer-events:none;
 }
+
+/* ── Voice call button active ── */
+#voiceCallBtn.active{color:var(--accent3)!important;text-shadow:0 0 10px var(--accent3);}
+#muteBtn.muted{background:rgba(240,96,96,.15)!important;border-color:var(--red)!important;color:var(--red)!important;}
+
+/* ── Voice participant chip ── */
+.voice-chip{
+  display:flex;align-items:center;gap:5px;
+  padding:3px 9px;border-radius:20px;
+  background:rgba(78,204,163,0.1);border:1px solid rgba(78,204,163,0.25);
+  font-size:11px;color:var(--accent3);font-family:var(--font2);
+}
+.voice-chip.speaking{background:rgba(78,204,163,0.2);border-color:rgba(78,204,163,0.5);box-shadow:0 0 8px rgba(78,204,163,0.3);}
+.voice-chip.muted{opacity:.5;filter:grayscale(.7);}
+.voice-chip-dot{width:6px;height:6px;border-radius:50%;background:var(--accent3);flex-shrink:0;}
+.voice-chip.speaking .voice-chip-dot{animation:pulse .6s ease-in-out infinite;}
+
+/* ── Voice message bubble ── */
+.voice-msg-bubble{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 12px;
+  border-radius:14px;
+  min-width:160px;max-width:100%;
+}
+.chat-msg.mine .voice-msg-bubble{
+  background:rgba(108,143,255,0.18);border:1px solid rgba(108,143,255,0.28);border-bottom-right-radius:4px;
+}
+.chat-msg.other .voice-msg-bubble{
+  background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.09);border-bottom-left-radius:4px;
+}
+.voice-play-btn{
+  width:28px;height:28px;border-radius:50%;border:none;cursor:pointer;
+  background:linear-gradient(135deg,var(--accent),#5578e8);
+  color:#fff;font-size:11px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .15s,box-shadow .15s;
+  box-shadow:0 0 10px rgba(108,143,255,.4);
+}
+.voice-play-btn:hover{transform:scale(1.12);box-shadow:0 0 16px rgba(108,143,255,.7);}
+.voice-waveform{
+  flex:1;height:28px;
+  display:flex;align-items:center;gap:2px;
+  overflow:hidden;
+}
+.voice-waveform-bar{
+  flex-shrink:0;width:3px;border-radius:2px;
+  background:rgba(108,143,255,0.5);
+  transition:background .2s;
+}
+.voice-duration{font-size:10px;color:var(--txt3);font-family:var(--mono);white-space:nowrap;}
 </style>
 
 <!-- Chat HTML -->
@@ -2371,8 +2421,23 @@ function onKey(e){
     <span id="chat-header-icon">💬</span>
     <span id="chat-header-title">دردشة الغرفة</span>
     <span id="chat-badge" aria-live="polite"></span>
+    <button id="voiceCallBtn" onclick="event.stopPropagation();toggleVoiceCall()" title="محادثة صوتية"
+      style="background:none;border:none;cursor:pointer;font-size:16px;padding:2px 6px;border-radius:8px;color:var(--txt2);transition:all .2s;flex-shrink:0;">🎙️</button>
     <span id="chat-toggle-icon">▲</span>
   </div>
+
+  <!-- Voice Call Panel -->
+  <div id="voice-call-panel" style="display:none;padding:10px 12px;border-bottom:1px solid rgba(78,204,163,0.2);background:rgba(78,204,163,0.06);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <div style="display:flex;align-items:center;gap:7px;">
+        <span id="voiceCallDot" style="width:8px;height:8px;border-radius:50%;background:var(--accent3);box-shadow:0 0 8px var(--accent3);display:inline-block;animation:pulse 1.5s ease-in-out infinite;"></span>
+        <span id="voiceCallStatus" style="font-size:11px;color:var(--accent3);font-family:var(--mono);">جاري الاتصال…</span>
+      </div>
+      <button onclick="toggleMute()" id="muteBtn" style="background:rgba(255,255,255,.07);border:1px solid var(--border2);border-radius:8px;color:var(--txt1);cursor:pointer;font-size:12px;padding:4px 10px;transition:all .15s;font-family:var(--font2);">🎤 صوت</button>
+    </div>
+    <div id="voiceParticipants" style="display:flex;flex-wrap:wrap;gap:5px;min-height:20px;"></div>
+  </div>
+
   <div id="chat-body">
     <div id="chat-messages" aria-live="polite" aria-label="الرسائل">
       <div id="chat-empty">
@@ -2381,6 +2446,8 @@ function onKey(e){
       </div>
     </div>
     <div id="chat-input-area">
+      <button id="voiceRecordBtn" title="تسجيل رسالة صوتية"
+        style="flex-shrink:0;width:36px;height:36px;border-radius:12px;border:1px solid var(--border2);background:rgba(255,255,255,.05);color:var(--txt2);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;">🎤</button>
       <textarea
         id="chat-input"
         placeholder="اكتب رسالة…"
@@ -2392,8 +2459,16 @@ function onKey(e){
       ></textarea>
       <button id="chat-send" title="إرسال" disabled aria-label="إرسال">➤</button>
     </div>
+    <!-- Voice recording bar -->
+    <div id="voice-recording-bar" style="display:none;padding:8px 12px;background:rgba(240,96,96,0.1);border-top:1px solid rgba(240,96,96,0.18);align-items:center;gap:10px;">
+      <span style="width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);display:inline-block;animation:pulse .7s ease-in-out infinite;flex-shrink:0;"></span>
+      <span id="voiceRecordTimer" style="font-family:var(--mono);font-size:12px;color:var(--red);flex:1;">0:00</span>
+      <button id="cancelVoiceBtn" style="background:none;border:none;color:var(--txt3);cursor:pointer;font-size:18px;padding:0 4px;">✕</button>
+      <button id="sendVoiceBtn" style="background:linear-gradient(135deg,var(--accent3),#2ecc88);border:none;border-radius:8px;color:#fff;cursor:pointer;font-size:12px;padding:5px 12px;font-family:var(--font2);">إرسال ✓</button>
+    </div>
   </div>
 </div>
+<div id="remoteAudios" style="display:none;"></div>
 
 <script>
 /* ═══════════════════════════════════════
@@ -2979,6 +3054,377 @@ function onKey(e){
       }
     }catch(_){}
   }
+
+})();
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   VOICE CALL MODULE — WebRTC peer-to-peer via Socket.IO signaling
+   Requires: socket (global), myId, myName, myColor, roomId
+═══════════════════════════════════════════════════════ */
+(function VoiceCallModule(){
+  const STUN = { iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}] };
+
+  let localStream  = null;
+  let peers        = {};      // peerId → RTCPeerConnection
+  let callActive   = false;
+  let isMuted      = false;
+
+  const panel      = document.getElementById('voice-call-panel');
+  const callBtn    = document.getElementById('voiceCallBtn');
+  const statusEl   = document.getElementById('voiceCallStatus');
+  const muteBtn    = document.getElementById('muteBtn');
+  const chipsEl    = document.getElementById('voiceParticipants');
+  const audiosEl   = document.getElementById('remoteAudios');
+
+  /* ── Chip management ── */
+  function addChip(id, name, color){
+    if(document.getElementById('chip-'+id)) return;
+    const c = document.createElement('div');
+    c.className = 'voice-chip';
+    c.id = 'chip-'+id;
+    c.innerHTML = `<span class="voice-chip-dot" style="background:${color||'var(--accent3)'};box-shadow:0 0 5px ${color||'var(--accent3)'}"></span><span>${name||'مجهول'}</span>`;
+    chipsEl.appendChild(c);
+  }
+  function removeChip(id){ const el=document.getElementById('chip-'+id); if(el) el.remove(); }
+  function setChipSpeaking(id, speaking){
+    const el=document.getElementById('chip-'+id);
+    if(el) el.classList.toggle('speaking', speaking);
+  }
+
+  /* ── Remote audio element ── */
+  function getOrCreateAudio(id){
+    let a = document.getElementById('audio-'+id);
+    if(!a){
+      a = document.createElement('audio');
+      a.id = 'audio-'+id;
+      a.autoplay = true;
+      a.playsInline = true;
+      audiosEl.appendChild(a);
+    }
+    return a;
+  }
+
+  /* ── Create a peer connection to a remote user ── */
+  async function createPeer(remoteId, isInitiator){
+    if(peers[remoteId]) return;
+    const pc = new RTCPeerConnection(STUN);
+    peers[remoteId] = pc;
+
+    // Add local tracks
+    if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
+
+    // ICE
+    pc.onicecandidate = e=>{
+      if(e.candidate && socket?.connected){
+        socket.emit('voice-ice', { to: remoteId, candidate: e.candidate });
+      }
+    };
+
+    // Remote stream
+    pc.ontrack = e=>{
+      const audio = getOrCreateAudio(remoteId);
+      if(audio.srcObject !== e.streams[0]) audio.srcObject = e.streams[0];
+    };
+
+    pc.onconnectionstatechange = ()=>{
+      if(['disconnected','failed','closed'].includes(pc.connectionState)){
+        closePeer(remoteId);
+      }
+    };
+
+    if(isInitiator){
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket?.emit('voice-offer', { to: remoteId, offer: pc.localDescription });
+    }
+    return pc;
+  }
+
+  function closePeer(id){
+    if(peers[id]){ peers[id].close(); delete peers[id]; }
+    const a = document.getElementById('audio-'+id);
+    if(a){ a.srcObject=null; a.remove(); }
+    removeChip(id);
+    updateStatus();
+  }
+
+  function updateStatus(){
+    const n = Object.keys(peers).length;
+    if(n===0) statusEl.textContent = 'لا يوجد مشاركون آخرون';
+    else statusEl.textContent = `${n} مشارك${n>1?'ون':''}`;
+  }
+
+  /* ── Toggle call ── */
+  window.toggleVoiceCall = async function(){
+    if(callActive){ stopCall(); return; }
+    await startCall();
+  };
+
+  async function startCall(){
+    try{
+      localStream = await navigator.mediaDevices.getUserMedia({audio:true, video:false});
+    }catch(e){
+      showToast('لا يمكن الوصول للميكروفون');
+      return;
+    }
+    callActive = true;
+    panel.style.display = 'block';
+    callBtn.classList.add('active');
+    callBtn.textContent = '📞';
+    statusEl.textContent = 'بانتظار الآخرين…';
+    // Add self chip
+    addChip('self', (typeof myName!=='undefined'?myName:'أنت')+'(أنت)', typeof myColor!=='undefined'?myColor:'var(--accent3)');
+    // Notify room
+    if(socket?.connected) socket.emit('voice-join', { name: myName, color: myColor });
+    showToast('📞 انضممت للمحادثة الصوتية');
+  }
+
+  function stopCall(){
+    callActive = false;
+    if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
+    Object.keys(peers).forEach(id=>{ peers[id].close(); delete peers[id]; });
+    document.querySelectorAll('#remoteAudios audio').forEach(a=>{a.srcObject=null;a.remove();});
+    chipsEl.innerHTML='';
+    panel.style.display = 'none';
+    callBtn.classList.remove('active');
+    callBtn.textContent = '🎙️';
+    isMuted = false;
+    muteBtn.textContent = '🎤 صوت';
+    muteBtn.classList.remove('muted');
+    if(socket?.connected) socket.emit('voice-leave');
+    showToast('📵 غادرت المحادثة الصوتية');
+  }
+
+  /* ── Mute toggle ── */
+  window.toggleMute = function(){
+    if(!localStream) return;
+    isMuted = !isMuted;
+    localStream.getAudioTracks().forEach(t=>t.enabled=!isMuted);
+    muteBtn.textContent = isMuted ? '🔇 مكتوم' : '🎤 صوت';
+    muteBtn.classList.toggle('muted', isMuted);
+    if(socket?.connected) socket.emit('voice-mute', {muted:isMuted});
+  };
+
+  /* ── Socket signaling (hooked after socket ready) ── */
+  function hookVoiceSocket(){
+    // Someone else joined — send them an offer
+    socket.on('voice-user-joined', async ({userId, name, color})=>{
+      if(!callActive) return;
+      addChip(userId, name, color);
+      await createPeer(userId, true);
+      updateStatus();
+    });
+
+    // Current participants when we join
+    socket.on('voice-participants', async (list)=>{
+      if(!callActive) return;
+      for(const p of list){
+        addChip(p.userId, p.name, p.color);
+        await createPeer(p.userId, true);
+      }
+      updateStatus();
+    });
+
+    socket.on('voice-user-left', ({userId})=>{
+      closePeer(userId);
+    });
+
+    socket.on('voice-offer', async ({from, fromName, fromColor, offer})=>{
+      if(!callActive) return;
+      addChip(from, fromName, fromColor);
+      const pc = await createPeer(from, false);
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('voice-answer', { to: from, answer: pc.localDescription });
+      updateStatus();
+    });
+
+    socket.on('voice-answer', async ({from, answer})=>{
+      const pc = peers[from];
+      if(pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on('voice-ice', async ({from, candidate})=>{
+      const pc = peers[from];
+      if(pc) try{ await pc.addIceCandidate(new RTCIceCandidate(candidate)); }catch(_){}
+    });
+
+    socket.on('voice-mute', ({userId, muted})=>{
+      const chip = document.getElementById('chip-'+userId);
+      if(chip) chip.classList.toggle('muted', muted);
+    });
+  }
+
+  const svWait = setInterval(()=>{
+    if(typeof socket!=='undefined' && socket){
+      clearInterval(svWait);
+      // Wait for socket to actually connect before hooking
+      if(socket.connected){ hookVoiceSocket(); }
+      else { socket.once('connect', hookVoiceSocket); }
+    }
+  }, 300);
+
+})();
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   VOICE MESSAGE MODULE — Record & send audio clips in chat
+   Encodes as base64 WebM/OGG and sends via socket
+═══════════════════════════════════════════════════════ */
+(function VoiceMessageModule(){
+  const recordBtn  = document.getElementById('voiceRecordBtn');
+  const recordBar  = document.getElementById('voice-recording-bar');
+  const timerEl    = document.getElementById('voiceRecordTimer');
+  const cancelBtn  = document.getElementById('cancelVoiceBtn');
+  const sendBtn    = document.getElementById('sendVoiceBtn');
+  const messages   = document.getElementById('chat-messages');
+  const empty      = document.getElementById('chat-empty');
+
+  let mediaRec   = null;
+  let chunks     = [];
+  let timerInt   = null;
+  let elapsed    = 0;
+  let isRecording= false;
+  const MAX_SEC  = 60;
+
+  function fmtTime(s){ return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` }
+
+  /* ── Start recording ── */
+  async function startRecord(){
+    if(isRecording) return;
+    let stream;
+    try{ stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+    catch(e){ showToast('لا يمكن الوصول للميكروفون'); return; }
+
+    chunks = []; elapsed = 0;
+    const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+        ? 'audio/ogg;codecs=opus' : 'audio/webm';
+
+    mediaRec = new MediaRecorder(stream, {mimeType: mime});
+    mediaRec.ondataavailable = e=>{ if(e.data.size>0) chunks.push(e.data); };
+    mediaRec.onstop = ()=>{ stream.getTracks().forEach(t=>t.stop()); };
+    mediaRec.start(200);
+
+    isRecording = true;
+    recordBar.style.display = 'flex';
+    recordBtn.style.color = 'var(--red)';
+    recordBtn.style.borderColor = 'var(--red)';
+    recordBtn.style.background = 'rgba(240,96,96,0.12)';
+    timerEl.textContent = '0:00';
+
+    timerInt = setInterval(()=>{
+      elapsed++;
+      timerEl.textContent = fmtTime(elapsed);
+      if(elapsed >= MAX_SEC) sendRecord();
+    }, 1000);
+  }
+
+  function stopRecord(){
+    if(!isRecording) return;
+    isRecording = false;
+    clearInterval(timerInt);
+    if(mediaRec && mediaRec.state !== 'inactive') mediaRec.stop();
+    recordBar.style.display = 'none';
+    recordBtn.style.color = '';
+    recordBtn.style.borderColor = '';
+    recordBtn.style.background = '';
+  }
+
+  function cancelRecord(){
+    stopRecord();
+    chunks = [];
+  }
+
+  async function sendRecord(){
+    if(chunks.length===0){ cancelRecord(); return; }
+    const dur = elapsed;
+    stopRecord();
+    const blob = new Blob(chunks, {type: mediaRec?.mimeType||'audio/webm'});
+    chunks = [];
+
+    // Convert to base64
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const b64 = reader.result; // data:audio/...;base64,...
+      if(socket?.connected && typeof roomId!=='undefined' && roomId){
+        socket.emit('chat-voice', { audio: b64, duration: dur });
+      } else {
+        // Local preview only (no server)
+        renderVoiceMsg({ userId:'self', name: myName||'أنت', color: myColor||'var(--accent)', audio: b64, duration: dur, time: Date.now() });
+      }
+    };
+    reader.readAsDataURL(blob);
+  }
+
+  /* ── Render a voice message bubble ── */
+  window.renderVoiceMsg = function(msg){
+    const isMine = msg.userId === (typeof myId!=='undefined'?myId:'self') || msg.userId==='self';
+    if(empty && empty.parentNode) empty.remove();
+    const el = document.createElement('div');
+    el.className = 'chat-msg ' + (isMine?'mine':'other');
+    const initials = (msg.name||'?').charAt(0).toUpperCase();
+    const bars = Array.from({length:24}, (_,i)=>{
+      const h = 4 + Math.random()*20;
+      return `<div class="voice-waveform-bar" style="height:${h}px;"></div>`;
+    }).join('');
+    el.innerHTML = `
+      <div class="chat-msg-meta">
+        <div class="chat-msg-avatar" style="background:${msg.color};box-shadow:0 0 8px ${msg.color}88">${initials}</div>
+        <span class="chat-msg-name" style="color:${msg.color}">${msg.name||'مجهول'}</span>
+        <span class="chat-msg-time" style="font-family:var(--mono);font-size:9px;color:var(--txt3);">${fmtMsgTime(msg.time)}</span>
+      </div>
+      <div class="voice-msg-bubble">
+        <button class="voice-play-btn" data-audio="${encodeURIComponent(msg.audio)}" onclick="playVoiceMsg(this)">▶</button>
+        <div class="voice-waveform">${bars}</div>
+        <span class="voice-duration">${fmtTime(msg.duration||0)}</span>
+      </div>
+    `;
+    messages.appendChild(el);
+    messages.scrollTop = messages.scrollHeight;
+  };
+
+  function fmtMsgTime(ts){
+    const d=new Date(ts||Date.now());
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+
+  /* ── Play voice message ── */
+  let currentAudio = null;
+  window.playVoiceMsg = function(btn){
+    if(currentAudio && !currentAudio.paused){
+      currentAudio.pause();
+      currentAudio = null;
+      btn.textContent = '▶';
+      return;
+    }
+    const src = decodeURIComponent(btn.dataset.audio);
+    currentAudio = new Audio(src);
+    btn.textContent = '⏸';
+    currentAudio.play();
+    currentAudio.onended = ()=>{ btn.textContent = '▶'; currentAudio=null; };
+  };
+
+  /* ── Button events ── */
+  recordBtn.addEventListener('click', ()=>{
+    if(isRecording) sendRecord();
+    else startRecord();
+  });
+  cancelBtn.addEventListener('click', cancelRecord);
+  sendBtn.addEventListener('click', sendRecord);
+
+  /* ── Hook socket for receiving voice messages ── */
+  function hookSocket(){
+    socket.on('chat-voice', msg=>{ renderVoiceMsg(msg); });
+  }
+  const vwait = setInterval(()=>{
+    if(typeof socket!=='undefined'&&socket){ clearInterval(vwait); hookSocket(); }
+  },300);
 
 })();
 </script>
