@@ -717,6 +717,74 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
 /* Pan cursor */
 .pan-mode #cvMain{cursor:grab !important}
 .pan-mode #cvMain:active{cursor:grabbing !important}
+
+/* ══ GAME BANNER ══ */
+#gameBanner {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 15;
+  background: rgba(8,10,18,0.93);
+  backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(108,143,255,0.25);
+  padding: 8px 14px;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--mono);
+}
+#gameBanner.show { display: flex !important; }
+
+/* ══ FLOATING TOOLS DRAWER ══ */
+#toolsDrawer {
+  display: none;
+  position: absolute;
+  top: 60px; right: 0;
+  z-index: 18;
+  width: 220px;
+  max-height: calc(100% - 80px);
+  overflow-y: auto;
+  background: rgba(8,10,18,0.93);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border2);
+  border-radius: 14px 0 0 14px;
+  padding: 12px;
+  box-shadow: -4px 4px 24px rgba(0,0,0,.6);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+  transform: translateX(100%);
+  transition: transform .28s cubic-bezier(.4,0,.2,1);
+}
+#toolsDrawer.open { transform: translateX(0); }
+
+#toolsDrawerHandle {
+  display: none;
+  position: absolute;
+  top: 70px; right: 0;
+  z-index: 20;
+  width: 32px; height: 52px;
+  background: rgba(8,10,18,0.88);
+  border: 1px solid var(--border2);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  flex-direction: column;
+  gap: 3px;
+  transition: background .2s;
+}
+#toolsDrawerHandle:hover { background: rgba(108,143,255,.15); border-color: var(--accent); }
+#toolsDrawerHandle .handle-ico { font-size: 16px; }
+
+/* when game banner visible, push canvas toolbar down */
+#gameBanner.show ~ #canvasToolbar,
+.game-active #canvasToolbar { top: 68px !important; }
+
+#app.gamemode #gameStartWrap { display: block; }
+
+/* Guessers: canvas shows pointer cursor (not crosshair) since drawing is locked */
+.guesser-mode #cvMain { cursor: default !important; pointer-events: none !important; }
 </style>
 </head>
 <body>
@@ -851,6 +919,13 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
     <div class="card">
       <p class="field-label">اسمك (اختياري)</p>
       <input class="field" id="nameInput" type="text" placeholder="رسام مجهول" maxlength="20" autocomplete="off">
+
+      <!-- Game Mode Toggle -->
+      <p class="field-label">وضع اللعبة</p>
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button id="modeFreeBtn" onclick="setLobbyMode('free')" class="btn btn-accent" style="flex:1;font-size:12px;">🎨 رسم حر</button>
+        <button id="modeGameBtn" onclick="setLobbyMode('guess')" class="btn btn-ghost" style="flex:1;font-size:12px;">🎯 تخمين</button>
+      </div>
 
       <p class="field-label">إنشاء غرفة جديدة</p>
       <button class="btn btn-accent" onclick="createRoom()" style="width:100%;margin-bottom:4px" id="createBtn">
@@ -999,6 +1074,34 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
     <canvas id="cvPreview"></canvas>
     <canvas id="cvMain"></canvas>
     <canvas id="cvOverlay"></canvas>
+
+    <!-- ══ GAME BANNER ══ -->
+    <div id="gameBanner">
+      <!-- Timer -->
+      <div id="gameTimer" style="font-size:22px;font-weight:700;color:var(--accent);min-width:38px;text-align:center;text-shadow:0 0 14px var(--accent);">--</div>
+      <!-- Word hint -->
+      <div style="flex:1;text-align:center;">
+        <div id="gameRoleLabel" style="font-size:10px;color:var(--txt3);margin-bottom:2px;letter-spacing:1px;text-transform:uppercase;"></div>
+        <div id="gameWordHint" style="font-size:18px;letter-spacing:6px;color:var(--txt0);font-weight:600;text-shadow:0 0 10px rgba(108,143,255,.4);">_ _ _ _ _</div>
+        <div id="gameSecretWord" style="display:none;font-size:16px;color:var(--accent3);font-weight:700;text-shadow:0 0 14px var(--accent3);letter-spacing:2px;"></div>
+      </div>
+      <!-- Scores -->
+      <div id="gameScores" style="display:flex;flex-direction:column;gap:3px;max-width:130px;"></div>
+      <!-- Round info -->
+      <div id="gameRoundInfo" style="font-size:10px;color:var(--txt3);text-align:right;white-space:nowrap;"></div>
+    </div>
+
+    <!-- ══ DRAWER TOGGLE HANDLE ══ -->
+    <div id="toolsDrawerHandle" onclick="toggleToolsDrawer()" title="أدوات الرسم">
+      <span class="handle-ico">🎨</span>
+      <span style="font-size:9px;color:var(--txt3);font-family:var(--mono);writing-mode:vertical-lr;">أدوات</span>
+    </div>
+
+    <!-- ══ FLOATING TOOLS DRAWER ══ -->
+    <div id="toolsDrawer">
+      <div id="drawerDragHandle" style="width:40px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 10px;cursor:grab;"></div>
+      <div id="toolsDrawerInner"></div>
+    </div>
 
     <!-- Canvas floating toolbar -->
     <div id="canvasToolbar">
@@ -3166,7 +3269,7 @@ function onKey(e){
     try{
       localStream = await navigator.mediaDevices.getUserMedia({audio:true, video:false});
     }catch(e){
-      showToast('لا يمكن الوصول للميكروفون');
+      toast('لا يمكن الوصول للميكروفون');
       return;
     }
     callActive = true;
@@ -3178,7 +3281,7 @@ function onKey(e){
     addChip('self', (typeof myName!=='undefined'?myName:'أنت')+'(أنت)', typeof myColor!=='undefined'?myColor:'var(--accent3)');
     // Notify room
     if(socket?.connected) socket.emit('voice-join', { name: myName, color: myColor });
-    showToast('📞 انضممت للمحادثة الصوتية');
+    toast('📞 انضممت للمحادثة الصوتية');
   }
 
   function stopCall(){
@@ -3194,7 +3297,7 @@ function onKey(e){
     muteBtn.textContent = '🎤 صوت';
     muteBtn.classList.remove('muted');
     if(socket?.connected) socket.emit('voice-leave');
-    showToast('📵 غادرت المحادثة الصوتية');
+    toast('📵 غادرت المحادثة الصوتية');
   }
 
   /* ── Mute toggle ── */
@@ -3298,7 +3401,7 @@ function onKey(e){
     if(isRecording) return;
     let stream;
     try{ stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
-    catch(e){ showToast('لا يمكن الوصول للميكروفون'); return; }
+    catch(e){ toast('لا يمكن الوصول للميكروفون'); return; }
 
     chunks = []; elapsed = 0;
     const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
@@ -3425,6 +3528,419 @@ function onKey(e){
   const vwait = setInterval(()=>{
     if(typeof socket!=='undefined'&&socket){ clearInterval(vwait); hookSocket(); }
   },300);
+
+})();
+</script>
+<script>
+/* ═══════════════════════════════════════════════════════
+   GUESS THE DRAWING — GAME MODULE
+   Roles: drawer (يرسم) / guesser (يخمن)
+   - Drawer sees secret word, tools enabled
+   - Guessers see blanked hint, tools locked, chat auto-guess
+   - Timer counts down; correct guess = points
+   - Rounds rotate drawer among players
+═══════════════════════════════════════════════════════ */
+(function GameModule(){
+
+  /* ──────────── CONFIG ──────────── */
+  const ROUND_SEC   = 80;
+  const WORDS = [
+    'قط','كلب','سيارة','بيت','شجرة','شمس','قمر','نجمة','سمكة','طيور',
+    'تفاحة','موزة','كرة','قلم','كتاب','ساعة','هاتف','طائرة','سفينة','قطار',
+    'جبل','نهر','بحر','زهرة','برتقالة','فراشة','أسد','فيل','حصان','دلفين',
+    'بيتزا','آيسكريم','كعكة','شطيرة','حقيبة','مظلة','مفتاح','نظارات','قبعة','حذاء',
+    'قوس قزح','ثلج','برق','مطر','نار','موجة','جزيرة','كهف','خيمة','قلعة',
+    'غيتار','بيانو','طبل','ميكروفون','تلسكوب','مجهر','روبوت','صاروخ','قنديل','عنكبوت'
+  ];
+
+  /* ──────────── STATE ──────────── */
+  let gameMode      = 'free';   // 'free' | 'guess'
+  let myRole        = 'guesser';// 'drawer' | 'guesser'
+  let currentWord   = '';
+  let timerInterval = null;
+  let timeLeft      = ROUND_SEC;
+  let roundNum      = 1;
+  let scores        = {};       // userId → points
+  let drawerUserId  = null;
+  let roundActive   = false;
+  let drawerName    = '';
+
+  /* ──────────── DOM ──────────── */
+  const banner      = document.getElementById('gameBanner');
+  const timerEl     = document.getElementById('gameTimer');
+  const hintEl      = document.getElementById('gameWordHint');
+  const secretEl    = document.getElementById('gameSecretWord');
+  const roleLabel   = document.getElementById('gameRoleLabel');
+  const scoresEl    = document.getElementById('gameScores');
+  const roundInfoEl = document.getElementById('gameRoundInfo');
+  const sidebar     = document.getElementById('sidebar');
+  const toolsDrawer = document.getElementById('toolsDrawer');
+  const drawerHandle= document.getElementById('toolsDrawerHandle');
+
+  /* expose for lobby buttons */
+  window.setLobbyMode = function(mode){
+    gameMode = mode;
+    document.getElementById('modeFreeBtn').className = 'btn ' + (mode==='free' ? 'btn-accent' : 'btn-ghost');
+    document.getElementById('modeGameBtn').className = 'btn ' + (mode==='guess'? 'btn-accent' : 'btn-ghost');
+  };
+
+  /* ──────────── TOOLS DRAWER ──────────── */
+  let drawerOpen = false;
+
+  window.toggleToolsDrawer = function(){
+    drawerOpen = !drawerOpen;
+    if(toolsDrawer){ 
+      toolsDrawer.style.display = 'block';
+      toolsDrawer.classList.toggle('open', drawerOpen);
+    }
+    if(drawerHandle) drawerHandle.style.background = drawerOpen ? 'rgba(108,143,255,.2)' : '';
+  };
+
+  function buildDrawerContent(){
+    const inner = document.getElementById('toolsDrawerInner');
+    if(inner.children.length > 0) return; // already built
+    // Clone relevant sidebar content
+    const sections = [
+      'الألوان', 'الفرشاة', 'الأدوات'
+    ];
+    // We build a mini version with existing functions
+    inner.innerHTML = `
+      <p class="sec-lbl">الألوان</p>
+      <div class="clr-grid" id="drawerClrGrid" style="grid-template-columns:repeat(5,1fr);"></div>
+      <div class="clr-row" style="margin-bottom:12px;">
+        <button class="clr-custom-btn" onclick="document.getElementById('cpicker').click()" title="لون مخصص">＋</button>
+        <div class="clr-preview" id="drawerClrPreview" style="flex:1;height:36px;border-radius:8px;border:1px solid var(--border2);margin:0;"></div>
+      </div>
+      <p class="sec-lbl">الحجم</p>
+      <div class="sl-wrap">
+        <div class="sl-head"><span class="sl-lbl">الحجم</span><span class="sl-val" id="drawerSzVal">4px</span></div>
+        <input type="range" id="drawerSzSlider" min="1" max="64" value="4" oninput="setSz(+this.value);document.getElementById('drawerSzVal').textContent=this.value+'px'">
+      </div>
+      <p class="sec-lbl" style="margin-top:10px;">الأدوات</p>
+      <div class="tools-grid" id="drawerToolsGrid" style="grid-template-columns:repeat(3,1fr);"></div>
+      <div class="ur-row" style="margin-top:8px;">
+        <button class="abtn" onclick="undo()">↩ تراجع</button>
+        <button class="abtn" onclick="redo()">↪ إعادة</button>
+      </div>
+      <button class="abtn danger" onclick="askClear()" style="margin-top:6px;width:100%">🗑️ مسح الكل</button>
+    `;
+
+    // Build color swatches in drawer
+    const dGrid = document.getElementById('drawerClrGrid');
+    ['#ffffff','#e4e8f0','#ff6b6b','#ff9f43','#ffd32a','#48dbfb',
+     '#3dd68c','#5b8af0','#fd79a8','#1e272e'].forEach(c=>{
+      const d = document.createElement('div');
+      d.className = 'clr-swatch';
+      d.style.background = c;
+      d.onclick = ()=> setColor(c);
+      dGrid.appendChild(d);
+    });
+
+    // Build tool buttons in drawer
+    const dTools = document.getElementById('drawerToolsGrid');
+    [['pen','✏️','قلم'],['eraser','🧹','ممحاة'],['line','📏','خط'],
+     ['rect','⬜','مستطيل'],['circle','⭕','دائرة'],['fill','🪣','تعبئة'],
+     ['spray','💨','رش'],['arrow','➡️','سهم'],['text','🔤','نص']].forEach(([tool,ico,name])=>{
+      const b = document.createElement('button');
+      b.className = 'tbtn' + (tool==='pen'?' on':'');
+      b.dataset.tool = tool;
+      b.innerHTML = `<span class="tbtn-ico">${ico}</span><span>${name}</span>`;
+      b.onclick = ()=> setTool(tool);
+      dTools.appendChild(b);
+    });
+  }
+
+  /* ──────────── WORD HINT ──────────── */
+  function makeHint(word, revealedCount){
+    if(!word) return '_ _ _ _ _';
+    return word.split('').map((ch, i) => i < revealedCount ? ch : '_').join(' ');
+  }
+
+  /* ──────────── LOCK / UNLOCK TOOLS ──────────── */
+  function setDrawerRole(isDrawer){
+    myRole = isDrawer ? 'drawer' : 'guesser';
+    // Show/hide sidebar vs floating drawer
+    if(gameMode !== 'guess') return;
+
+    if(isDrawer){
+      // Show sidebar (contains drawing tools)
+      sidebar.style.display = '';
+      if(drawerHandle) drawerHandle.style.display = 'flex';
+      if(toolsDrawer) toolsDrawer.style.display = 'block';
+      roleLabel.textContent = '🖌️ أنت الرسام — ارسم:';
+      secretEl.style.display = 'block';
+      hintEl.style.display = 'none';
+      // Set canvas active
+      document.getElementById('cvMain').style.pointerEvents = 'auto';
+    } else {
+      // Guessers: hide sidebar, show floating read-only drawer toggle (no canvas interaction)
+      sidebar.style.display = 'none';
+      if(drawerHandle) drawerHandle.style.display = 'none';
+      if(toolsDrawer){ toolsDrawer.style.display = 'none'; drawerOpen = false; }
+      roleLabel.textContent = `✏️ ${drawerName} يرسم — خمّن:`;
+      secretEl.style.display = 'none';
+      hintEl.style.display = 'block';
+      // Disable canvas drawing
+      document.getElementById('cvMain').style.pointerEvents = 'none';
+    }
+  }
+
+  /* ──────────── TIMER ──────────── */
+  function startTimer(secs){
+    clearInterval(timerInterval);
+    timeLeft = secs;
+    updateTimerUI();
+    timerInterval = setInterval(()=>{
+      timeLeft--;
+      updateTimerUI();
+      // Progressive hint reveal for guessers (show 1 letter every 15s)
+      if(myRole === 'guesser' && currentWord){
+        const revealed = Math.floor((ROUND_SEC - timeLeft) / 15);
+        hintEl.textContent = makeHint(currentWord, revealed);
+      }
+      if(timeLeft <= 0){
+        clearInterval(timerInterval);
+        endRound(false);
+      }
+    }, 1000);
+  }
+
+  function updateTimerUI(){
+    timerEl.textContent = timeLeft;
+    timerEl.style.color = timeLeft <= 10 ? 'var(--red)' : timeLeft <= 20 ? 'var(--amber)' : 'var(--accent)';
+    timerEl.style.textShadow = `0 0 14px ${timeLeft<=10?'var(--red)':timeLeft<=20?'var(--amber)':'var(--accent)'}`;
+  }
+
+  /* ──────────── SCORES ──────────── */
+  function updateScores(){
+    scoresEl.innerHTML = '';
+    Object.entries(scores).sort((a,b)=>b[1]-a[1]).slice(0,5).forEach(([uid, pts])=>{
+      const name = window._userNames?.[uid] || uid.slice(0,4);
+      const color = window._userColors?.[uid] || '#6c8fff';
+      const el = document.createElement('div');
+      el.style.cssText = `font-size:10px;color:${color};font-family:var(--mono);white-space:nowrap;`;
+      el.textContent = `${name}: ${pts}`;
+      scoresEl.appendChild(el);
+    });
+  }
+
+  /* ──────────── ROUND FLOW ──────────── */
+  function startRound(word, drawerId, drawerNameStr, round){
+    roundActive = true;
+    drawerUserId = drawerId;
+    drawerName = drawerNameStr;
+    roundNum = round || roundNum;
+    currentWord = word; // empty for guessers, full for drawer
+
+    roundInfoEl.textContent = `جولة ${roundNum}`;
+
+    const isDrawer = (typeof myId !== 'undefined' && myId === drawerId);
+    setDrawerRole(isDrawer);
+
+    if(isDrawer){
+      secretEl.textContent = word;
+      hintEl.textContent = makeHint(word, 0);
+      toast(`🖌️ كلمتك السرية: ${word}`);
+    } else {
+      hintEl.textContent = makeHint(word, 0);
+    }
+
+    banner.classList.add('show');
+    document.getElementById('wrap').classList.add('game-active');
+    startTimer(ROUND_SEC);
+
+    // Clear canvas at start of each round
+    if(typeof ctxMain !== 'undefined'){
+      ctxMain.clearRect(0,0,cvMain.width,cvMain.height);
+    }
+  }
+
+  function endRound(guessed, guesserName){
+    roundActive = false;
+    clearInterval(timerInterval);
+    timerEl.textContent = '--';
+    if(guessed){
+      toast(`🎉 ${guesserName} خمّن الكلمة!`);
+    } else {
+      toast(`⏰ انتهى الوقت! الكلمة كانت: ${currentWord}`);
+    }
+    // Reveal word to all
+    if(currentWord){
+      hintEl.textContent = currentWord;
+      hintEl.style.display = 'block';
+      secretEl.style.display = 'none';
+    }
+    // Re-enable sidebar after short delay
+    setTimeout(()=>{
+      sidebar.style.display = '';
+      document.getElementById('cvMain').style.pointerEvents = 'auto';
+    }, 2000);
+  }
+
+  /* ──────────── CHAT INTERCEPTION (guess detection) ──────────── */
+  // Override chat send to check guesses
+  const origChatSend = window.chatSendMessage;
+  function interceptGuess(text){
+    if(gameMode !== 'guess' || !roundActive || myRole !== 'guesser') return false;
+    if(!currentWord) return false;
+    const clean = text.trim().toLowerCase().replace(/[^ءا-ي\w]/g,'');
+    const target = currentWord.toLowerCase().replace(/[^ءا-ي\w]/g,'');
+    if(clean === target){
+      // Correct guess!
+      const pts = Math.max(10, Math.round(timeLeft / ROUND_SEC * 100));
+      scores[myId] = (scores[myId]||0) + pts;
+      if(typeof socket !== 'undefined' && socket?.connected){
+        socket.emit('game-correct-guess', { word: currentWord, points: pts });
+      } else {
+        endRound(true, myName);
+        updateScores();
+      }
+      return true; // swallow the message
+    }
+    return false;
+  }
+
+  // Patch chat send button to intercept guesses
+  setTimeout(()=>{
+    const sendBtn = document.getElementById('chat-send');
+    const input   = document.getElementById('chat-input');
+    if(!sendBtn || !input) return;
+    sendBtn.addEventListener('click', (e)=>{
+      if(interceptGuess(input.value)) {
+        input.value = '';
+        sendBtn.disabled = true;
+        e.stopImmediatePropagation();
+      }
+    }, true);
+    input.addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter' && !e.shiftKey && interceptGuess(input.value)){
+        input.value = '';
+        sendBtn.disabled = true;
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    }, true);
+  }, 500);
+
+  /* ──────────── SOCKET EVENTS ──────────── */
+  function hookGameSocket(){
+    if(typeof socket === 'undefined' || !socket) return;
+
+    socket.on('game-start-round', ({word, drawerId, drawerName, round})=>{
+      startRound(word, drawerId, drawerName, round);
+    });
+
+    socket.on('game-word-update', ({hint, revealed})=>{
+      if(myRole === 'guesser') hintEl.textContent = hint;
+    });
+
+    socket.on('game-correct-guess', ({userId, userName, word, points})=>{
+      scores[userId] = (scores[userId]||0) + points;
+      // Drawer also gets points
+      if(drawerUserId) scores[drawerUserId] = (scores[drawerUserId]||0) + Math.round(points*0.5);
+      updateScores();
+      endRound(true, userName);
+      // Reveal word
+      currentWord = word;
+      hintEl.textContent = word;
+      hintEl.style.display = 'block';
+    });
+
+    socket.on('game-end-round', ({word})=>{
+      currentWord = word;
+      endRound(false);
+    });
+
+    socket.on('game-scores', (newScores)=>{
+      scores = newScores;
+      updateScores();
+    });
+
+    socket.on('room-users', (users)=>{
+      if(!window._userNames) window._userNames = {};
+      if(!window._userColors) window._userColors = {};
+      users.forEach(u=>{ _userNames[u.userId]=u.name; _userColors[u.userId]=u.color; });
+      updateScores();
+    });
+  }
+
+  const sockWait = setInterval(()=>{
+    if(typeof socket !== 'undefined' && socket){
+      clearInterval(sockWait);
+      if(socket.connected){ hookGameSocket(); }
+      else { socket.once('connect', hookGameSocket); }
+    }
+  }, 300);
+
+  /* ──────────── STANDALONE / DEMO MODE (no server) ──────────── */
+  // When user joins a room in guess mode and they're the first, auto-start as drawer
+  const origOpenApp = window.openApp;
+  window.openApp = function(rid){
+    origOpenApp.call(this, rid);
+    if(gameMode !== 'guess') return;
+
+    // Wait briefly for socket room-users event, then self-start if alone
+    setTimeout(()=>{
+      // Build drawer content
+      buildDrawerContent();
+      if(drawerHandle) drawerHandle.style.display = 'flex';
+
+      // If socket not connected, run local demo
+      if(!socket?.connected){
+        const word = WORDS[Math.floor(Math.random()*WORDS.length)];
+        startRound(word, myId||'self', myName||'أنا', 1);
+      }
+    }, 800);
+  };
+
+  /* ──────────── EMIT GAME START (host only) ──────────── */
+  // Add start game button to sidebar
+  window.hostStartGame = function(){
+    if(!socket?.connected){ localDemoStart(); return; }
+    const word = WORDS[Math.floor(Math.random()*WORDS.length)];
+    socket.emit('game-start', { word, round: roundNum });
+  };
+
+  function localDemoStart(){
+    const word = WORDS[Math.floor(Math.random()*WORDS.length)];
+    buildDrawerContent();
+    startRound(word, myId||'self', myName||'أنا', roundNum);
+  }
+
+  /* expose */
+  window.gameStartRound = localDemoStart;
+  window._gameModule = { startRound, endRound, scores, gameMode: ()=>gameMode };
+
+  /* ──────────── INJECT START BUTTON INTO SIDEBAR ──────────── */
+  setTimeout(()=>{
+    const si = document.getElementById('sidebar');
+    if(!si) return;
+    const div = document.createElement('div');
+    div.id = 'gameStartWrap';
+    div.style.cssText = 'display:none;margin-top:8px;';
+    div.innerHTML = `
+      <p class="sec-lbl">🎯 وضع التخمين</p>
+      <button class="abtn success" onclick="gameStartRound()" style="width:100%;margin-bottom:4px;">
+        ▶ ابدأ جولة جديدة
+      </button>
+      <div id="inGameScores" style="font-size:10px;color:var(--txt3);font-family:var(--mono);line-height:2;"></div>
+    `;
+    const leaveBtn = si.querySelector('.abtn[onclick*="leaveRoom"]');
+    if(leaveBtn) leaveBtn.before(div);
+    else si.querySelector('.drawer-inner').appendChild(div);
+
+    // Show/hide based on gameMode
+    if(gameMode === 'guess') div.style.display = 'block';
+  }, 600);
+
+  // Watch mode changes
+  const origSetLobbyMode = window.setLobbyMode;
+  window.setLobbyMode = function(mode){
+    origSetLobbyMode(mode);
+    gameMode = mode;
+    const wrap = document.getElementById('gameStartWrap');
+    if(wrap) wrap.style.display = mode==='guess' ? 'block' : 'none';
+  };
 
 })();
 </script>
