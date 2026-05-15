@@ -714,9 +714,55 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
   border-top: 1px solid var(--border1) !important;
 }
 
-/* Pan cursor */
-.pan-mode #cvMain{cursor:grab !important}
-.pan-mode #cvMain:active{cursor:grabbing !important}
+/* ── Desktop sidebar collapse ── */
+.sidebar {
+  transition: width .32s cubic-bezier(.4,0,.2,1),
+              padding .32s cubic-bezier(.4,0,.2,1),
+              opacity .22s;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.sidebar.sb-collapsed {
+  width: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  opacity: 0;
+  border: none !important;
+  min-width: 0;
+}
+
+/* Sidebar tab: floats on the right edge of sidebar */
+#sidebarTab {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 200;
+  right: var(--sidebar-w);
+  width: 20px; height: 64px;
+  background: rgba(10,12,20,0.9);
+  border: 1px solid var(--border2);
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  transition: background .2s, border-color .2s, right .32s cubic-bezier(.4,0,.2,1);
+  box-shadow: -2px 0 12px rgba(0,0,0,.4);
+}
+#sidebarTab:hover {
+  background: rgba(108,143,255,.18);
+  border-color: var(--accent);
+}
+#sidebarTab:hover #sidebarTabIcon { color: var(--accent); }
+#sidebarTab.sb-closed { right: 0; }
+
+/* ── Kill the fake tools drawer ── */
+#toolsDrawer, #toolsDrawerHandle { display: none !important; }
+
+
 
 /* ══ GAME BANNER ══ */
 #gameBanner {
@@ -734,48 +780,6 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
 }
 #gameBanner.show { display: flex !important; }
 
-/* ══ FLOATING TOOLS DRAWER ══ */
-#toolsDrawer {
-  display: none;
-  position: absolute;
-  top: 60px; right: 0;
-  z-index: 18;
-  width: 220px;
-  max-height: calc(100% - 80px);
-  overflow-y: auto;
-  background: rgba(8,10,18,0.93);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--border2);
-  border-radius: 14px 0 0 14px;
-  padding: 12px;
-  box-shadow: -4px 4px 24px rgba(0,0,0,.6);
-  scrollbar-width: thin;
-  scrollbar-color: var(--border2) transparent;
-  transform: translateX(100%);
-  transition: transform .28s cubic-bezier(.4,0,.2,1);
-}
-#toolsDrawer.open { transform: translateX(0); }
-
-#toolsDrawerHandle {
-  display: none;
-  position: absolute;
-  top: 70px; right: 0;
-  z-index: 20;
-  width: 32px; height: 52px;
-  background: rgba(8,10,18,0.88);
-  border: 1px solid var(--border2);
-  border-right: none;
-  border-radius: 10px 0 0 10px;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  backdrop-filter: blur(12px);
-  flex-direction: column;
-  gap: 3px;
-  transition: background .2s;
-}
-#toolsDrawerHandle:hover { background: rgba(108,143,255,.15); border-color: var(--accent); }
-#toolsDrawerHandle .handle-ico { font-size: 16px; }
 
 /* when game banner visible, push canvas toolbar down */
 #gameBanner.show ~ #canvasToolbar,
@@ -949,6 +953,11 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
 <!-- ══════════ APP ══════════ -->
 <div id="app">
 
+  <!-- Sidebar toggle tab — always visible on edge -->
+  <div id="sidebarTab" onclick="toggleSidebar()" title="إظهار/إخفاء الأدوات">
+    <span id="sidebarTabIcon" style="font-size:11px;color:var(--txt2);transition:transform .3s,color .2s;">❮</span>
+  </div>
+
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
 
@@ -1089,18 +1098,6 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
       <div id="gameScores" style="display:flex;flex-direction:column;gap:3px;max-width:130px;"></div>
       <!-- Round info -->
       <div id="gameRoundInfo" style="font-size:10px;color:var(--txt3);text-align:right;white-space:nowrap;"></div>
-    </div>
-
-    <!-- ══ DRAWER TOGGLE HANDLE ══ -->
-    <div id="toolsDrawerHandle" onclick="toggleToolsDrawer()" title="أدوات الرسم">
-      <span class="handle-ico">🎨</span>
-      <span style="font-size:9px;color:var(--txt3);font-family:var(--mono);writing-mode:vertical-lr;">أدوات</span>
-    </div>
-
-    <!-- ══ FLOATING TOOLS DRAWER ══ -->
-    <div id="toolsDrawer">
-      <div id="drawerDragHandle" style="width:40px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 10px;cursor:grab;"></div>
-      <div id="toolsDrawerInner"></div>
     </div>
 
     <!-- Canvas floating toolbar -->
@@ -3532,6 +3529,45 @@ function onKey(e){
 })();
 </script>
 <script>
+/* ═══════════════════════════════════════════════════
+   DESKTOP SIDEBAR COLLAPSE / EXPAND
+   The real sidebar slides in/out from the right.
+   A small tab stays visible at the edge to reopen it.
+═══════════════════════════════════════════════════ */
+(function SidebarCollapse(){
+  const sidebar  = document.getElementById('sidebar');
+  const tab      = document.getElementById('sidebarTab');
+  const tabIcon  = document.getElementById('sidebarTabIcon');
+  let open = true; // sidebar starts open
+
+  window.toggleSidebar = function(forceOpen){
+    if(typeof forceOpen === 'boolean'){
+      open = forceOpen;
+    } else {
+      open = !open;
+    }
+
+    if(open){
+      sidebar.classList.remove('sb-collapsed');
+      tab.classList.remove('sb-closed');
+      tabIcon.style.transform = 'rotate(0deg)';
+    } else {
+      sidebar.classList.add('sb-collapsed');
+      tab.classList.add('sb-closed');
+      tabIcon.style.transform = 'rotate(180deg)';
+    }
+  };
+
+  /* On mobile: tab is redundant (bottom drawer has its own toggle), hide it */
+  function checkMobile(){
+    tab.style.display = window.innerWidth <= 680 ? 'none' : 'flex';
+  }
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+})();
+</script>
+
+<script>
 /* ═══════════════════════════════════════════════════════
    GUESS THE DRAWING — GAME MODULE
    Roles: drawer (يرسم) / guesser (يخمن)
@@ -3574,8 +3610,6 @@ function onKey(e){
   const scoresEl    = document.getElementById('gameScores');
   const roundInfoEl = document.getElementById('gameRoundInfo');
   const sidebar     = document.getElementById('sidebar');
-  const toolsDrawer = document.getElementById('toolsDrawer');
-  const drawerHandle= document.getElementById('toolsDrawerHandle');
 
   /* expose for lobby buttons */
   window.setLobbyMode = function(mode){
@@ -3584,104 +3618,39 @@ function onKey(e){
     document.getElementById('modeGameBtn').className = 'btn ' + (mode==='guess'? 'btn-accent' : 'btn-ghost');
   };
 
-  /* ──────────── TOOLS DRAWER ──────────── */
-  let drawerOpen = false;
-
-  window.toggleToolsDrawer = function(){
-    drawerOpen = !drawerOpen;
-    if(toolsDrawer){ 
-      toolsDrawer.style.display = 'block';
-      toolsDrawer.classList.toggle('open', drawerOpen);
-    }
-    if(drawerHandle) drawerHandle.style.background = drawerOpen ? 'rgba(108,143,255,.2)' : '';
-  };
-
-  function buildDrawerContent(){
-    const inner = document.getElementById('toolsDrawerInner');
-    if(inner.children.length > 0) return; // already built
-    // Clone relevant sidebar content
-    const sections = [
-      'الألوان', 'الفرشاة', 'الأدوات'
-    ];
-    // We build a mini version with existing functions
-    inner.innerHTML = `
-      <p class="sec-lbl">الألوان</p>
-      <div class="clr-grid" id="drawerClrGrid" style="grid-template-columns:repeat(5,1fr);"></div>
-      <div class="clr-row" style="margin-bottom:12px;">
-        <button class="clr-custom-btn" onclick="document.getElementById('cpicker').click()" title="لون مخصص">＋</button>
-        <div class="clr-preview" id="drawerClrPreview" style="flex:1;height:36px;border-radius:8px;border:1px solid var(--border2);margin:0;"></div>
-      </div>
-      <p class="sec-lbl">الحجم</p>
-      <div class="sl-wrap">
-        <div class="sl-head"><span class="sl-lbl">الحجم</span><span class="sl-val" id="drawerSzVal">4px</span></div>
-        <input type="range" id="drawerSzSlider" min="1" max="64" value="4" oninput="setSz(+this.value);document.getElementById('drawerSzVal').textContent=this.value+'px'">
-      </div>
-      <p class="sec-lbl" style="margin-top:10px;">الأدوات</p>
-      <div class="tools-grid" id="drawerToolsGrid" style="grid-template-columns:repeat(3,1fr);"></div>
-      <div class="ur-row" style="margin-top:8px;">
-        <button class="abtn" onclick="undo()">↩ تراجع</button>
-        <button class="abtn" onclick="redo()">↪ إعادة</button>
-      </div>
-      <button class="abtn danger" onclick="askClear()" style="margin-top:6px;width:100%">🗑️ مسح الكل</button>
-    `;
-
-    // Build color swatches in drawer
-    const dGrid = document.getElementById('drawerClrGrid');
-    ['#ffffff','#e4e8f0','#ff6b6b','#ff9f43','#ffd32a','#48dbfb',
-     '#3dd68c','#5b8af0','#fd79a8','#1e272e'].forEach(c=>{
-      const d = document.createElement('div');
-      d.className = 'clr-swatch';
-      d.style.background = c;
-      d.onclick = ()=> setColor(c);
-      dGrid.appendChild(d);
-    });
-
-    // Build tool buttons in drawer
-    const dTools = document.getElementById('drawerToolsGrid');
-    [['pen','✏️','قلم'],['eraser','🧹','ممحاة'],['line','📏','خط'],
-     ['rect','⬜','مستطيل'],['circle','⭕','دائرة'],['fill','🪣','تعبئة'],
-     ['spray','💨','رش'],['arrow','➡️','سهم'],['text','🔤','نص']].forEach(([tool,ico,name])=>{
-      const b = document.createElement('button');
-      b.className = 'tbtn' + (tool==='pen'?' on':'');
-      b.dataset.tool = tool;
-      b.innerHTML = `<span class="tbtn-ico">${ico}</span><span>${name}</span>`;
-      b.onclick = ()=> setTool(tool);
-      dTools.appendChild(b);
-    });
-  }
-
   /* ──────────── WORD HINT ──────────── */
   function makeHint(word, revealedCount){
     if(!word) return '_ _ _ _ _';
     return word.split('').map((ch, i) => i < revealedCount ? ch : '_').join(' ');
   }
 
-  /* ──────────── LOCK / UNLOCK TOOLS ──────────── */
+  /* ──────────── LOCK / UNLOCK TOOLS (uses real sidebar) ──────────── */
   function setDrawerRole(isDrawer){
     myRole = isDrawer ? 'drawer' : 'guesser';
-    // Show/hide sidebar vs floating drawer
     if(gameMode !== 'guess') return;
 
     if(isDrawer){
-      // Show sidebar (contains drawing tools)
-      sidebar.style.display = '';
-      if(drawerHandle) drawerHandle.style.display = 'flex';
-      if(toolsDrawer) toolsDrawer.style.display = 'block';
+      // Show real sidebar
+      if(typeof toggleSidebar === 'function'){
+        const sb = document.getElementById('sidebar');
+        if(sb.classList.contains('sb-collapsed')) toggleSidebar();
+      }
       roleLabel.textContent = '🖌️ أنت الرسام — ارسم:';
       secretEl.style.display = 'block';
       hintEl.style.display = 'none';
-      // Set canvas active
       document.getElementById('cvMain').style.pointerEvents = 'auto';
+      document.getElementById('wrap').classList.remove('guesser-mode');
     } else {
-      // Guessers: hide sidebar, show floating read-only drawer toggle (no canvas interaction)
-      sidebar.style.display = 'none';
-      if(drawerHandle) drawerHandle.style.display = 'none';
-      if(toolsDrawer){ toolsDrawer.style.display = 'none'; drawerOpen = false; }
-      roleLabel.textContent = `✏️ ${drawerName} يرسم — خمّن:`;
+      // Hide real sidebar — guessers don't need tools
+      if(typeof toggleSidebar === 'function'){
+        const sb = document.getElementById('sidebar');
+        if(!sb.classList.contains('sb-collapsed')) toggleSidebar();
+      }
+      roleLabel.textContent = `✏️ ${drawerName} يرسم — خمّن في الدردشة:`;
       secretEl.style.display = 'none';
       hintEl.style.display = 'block';
-      // Disable canvas drawing
       document.getElementById('cvMain').style.pointerEvents = 'none';
+      document.getElementById('wrap').classList.add('guesser-mode');
     }
   }
 
@@ -3873,19 +3842,11 @@ function onKey(e){
   }, 300);
 
   /* ──────────── STANDALONE / DEMO MODE (no server) ──────────── */
-  // When user joins a room in guess mode and they're the first, auto-start as drawer
   const origOpenApp = window.openApp;
   window.openApp = function(rid){
     origOpenApp.call(this, rid);
     if(gameMode !== 'guess') return;
-
-    // Wait briefly for socket room-users event, then self-start if alone
     setTimeout(()=>{
-      // Build drawer content
-      buildDrawerContent();
-      if(drawerHandle) drawerHandle.style.display = 'flex';
-
-      // If socket not connected, run local demo
       if(!socket?.connected){
         const word = WORDS[Math.floor(Math.random()*WORDS.length)];
         startRound(word, myId||'self', myName||'أنا', 1);
@@ -3894,7 +3855,6 @@ function onKey(e){
   };
 
   /* ──────────── EMIT GAME START (host only) ──────────── */
-  // Add start game button to sidebar
   window.hostStartGame = function(){
     if(!socket?.connected){ localDemoStart(); return; }
     const word = WORDS[Math.floor(Math.random()*WORDS.length)];
@@ -3903,7 +3863,6 @@ function onKey(e){
 
   function localDemoStart(){
     const word = WORDS[Math.floor(Math.random()*WORDS.length)];
-    buildDrawerContent();
     startRound(word, myId||'self', myName||'أنا', roundNum);
   }
 
