@@ -672,7 +672,111 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
 
 <!-- ══════════ LOBBY ══════════ -->
 <div id="lobby" style="display:none">
-  <div class="lobby-wrap">
+
+<!-- Particle Canvas Background -->
+<canvas id="lobbyCanvas" style="position:absolute;inset:0;z-index:0;pointer-events:none;"></canvas>
+
+<!-- Floating Brush Strokes SVG Elements -->
+<div id="floatingArt" style="position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;">
+  <svg class="float-svg fs1" viewBox="0 0 120 40" style="position:absolute;top:8%;left:5%;width:140px;opacity:0.13;filter:drop-shadow(0 0 12px #6c8fff)">
+    <path d="M10,30 Q30,5 60,20 Q90,35 110,10" stroke="#6c8fff" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </svg>
+  <svg class="float-svg fs2" viewBox="0 0 80 80" style="position:absolute;top:15%;right:8%;width:90px;opacity:0.12;filter:drop-shadow(0 0 10px #ff6b9d)">
+    <circle cx="40" cy="40" r="30" stroke="#ff6b9d" stroke-width="3" fill="none" stroke-dasharray="8 6"/>
+  </svg>
+  <svg class="float-svg fs3" viewBox="0 0 100 60" style="position:absolute;bottom:20%;left:3%;width:120px;opacity:0.11;filter:drop-shadow(0 0 10px #4ecca3)">
+    <rect x="10" y="10" width="80" height="40" rx="8" stroke="#4ecca3" stroke-width="2.5" fill="none"/>
+  </svg>
+  <svg class="float-svg fs4" viewBox="0 0 100 100" style="position:absolute;bottom:15%;right:5%;width:100px;opacity:0.1;filter:drop-shadow(0 0 12px #feca57)">
+    <polygon points="50,5 95,35 80,85 20,85 5,35" stroke="#feca57" stroke-width="2.5" fill="none"/>
+  </svg>
+  <svg class="float-svg fs5" viewBox="0 0 160 50" style="position:absolute;top:40%;left:-2%;width:170px;opacity:0.09;filter:drop-shadow(0 0 10px #a29bfe)">
+    <path d="M5,25 Q40,5 80,25 Q120,45 155,25" stroke="#a29bfe" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </svg>
+  <svg class="float-svg fs6" viewBox="0 0 80 80" style="position:absolute;top:60%;right:3%;width:80px;opacity:0.11;filter:drop-shadow(0 0 10px #48dbfb)">
+    <line x1="10" y1="10" x2="70" y2="70" stroke="#48dbfb" stroke-width="3" stroke-linecap="round"/>
+    <line x1="70" y1="10" x2="10" y2="70" stroke="#48dbfb" stroke-width="3" stroke-linecap="round"/>
+  </svg>
+  <svg class="float-svg fs7" viewBox="0 0 120 120" style="position:absolute;top:25%;left:50%;transform:translateX(-50%);width:160px;opacity:0.06;filter:drop-shadow(0 0 20px #6c8fff)">
+    <circle cx="60" cy="60" r="55" stroke="#6c8fff" stroke-width="1.5" fill="none" stroke-dasharray="3 8"/>
+    <circle cx="60" cy="60" r="35" stroke="#ff6b9d" stroke-width="1" fill="none" stroke-dasharray="2 6"/>
+  </svg>
+</div>
+
+<!-- Glow Orbs -->
+<div style="position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;">
+  <div style="position:absolute;width:500px;height:500px;background:radial-gradient(circle,#6c8fff14 0%,transparent 70%);top:-100px;left:-100px;animation:orbFloat1 8s ease-in-out infinite;"></div>
+  <div style="position:absolute;width:400px;height:400px;background:radial-gradient(circle,#ff6b9d10 0%,transparent 70%);bottom:-80px;right:-80px;animation:orbFloat2 10s ease-in-out infinite;"></div>
+  <div style="position:absolute;width:300px;height:300px;background:radial-gradient(circle,#4ecca30d 0%,transparent 70%);top:50%;right:10%;transform:translateY(-50%);animation:orbFloat3 12s ease-in-out infinite;"></div>
+</div>
+
+<style>
+@keyframes orbFloat1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(60px,-40px) scale(1.1)}66%{transform:translate(-30px,50px) scale(0.95)}}
+@keyframes orbFloat2{0%,100%{transform:translate(0,0) scale(1)}40%{transform:translate(-50px,30px) scale(1.08)}70%{transform:translate(40px,-60px) scale(0.92)}}
+@keyframes orbFloat3{0%,100%{transform:translateY(-50%) scale(1)}50%{transform:translateY(calc(-50% - 40px)) scale(1.12)}}
+@keyframes floatSvg1{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-20px) rotate(5deg)}}
+@keyframes floatSvg2{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-15px) rotate(-8deg)}}
+@keyframes floatSvg3{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-25px) rotate(3deg)}}
+@keyframes floatSvg4{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-18px) rotate(-5deg)}}
+@keyframes floatSvg5{0%,100%{transform:translateY(0)}50%{transform:translateY(-22px)}}
+@keyframes floatSvg6{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-12px) rotate(15deg)}}
+@keyframes floatSvg7{0%,100%{transform:translateX(-50%) rotate(0deg)}50%{transform:translateX(-50%) rotate(30deg)}}
+.fs1{animation:floatSvg1 6s ease-in-out infinite}
+.fs2{animation:floatSvg2 7s ease-in-out infinite}
+.fs3{animation:floatSvg3 8s ease-in-out infinite}
+.fs4{animation:floatSvg4 5.5s ease-in-out infinite}
+.fs5{animation:floatSvg5 9s ease-in-out infinite}
+.fs6{animation:floatSvg6 6.5s ease-in-out infinite}
+.fs7{animation:floatSvg7 20s linear infinite}
+
+/* Shooting stars / paint splatter bursts */
+@keyframes shootStar{0%{transform:translateX(0) translateY(0);opacity:1}100%{transform:translateX(var(--dx)) translateY(var(--dy));opacity:0}}
+.shoot-star{
+  position:absolute;
+  width:4px;height:4px;border-radius:50%;
+  animation:shootStar var(--dur) ease-out forwards;
+  pointer-events:none;
+}
+
+/* Lobby card enhanced glow on hover */
+#lobby .card{
+  transition:border-color .4s, box-shadow .4s, transform .3s;
+}
+#lobby .card:hover{
+  border-color:rgba(108,143,255,0.4)!important;
+  box-shadow:0 8px 60px rgba(0,0,0,.6), 0 0 40px rgba(108,143,255,0.12), inset 0 1px 0 rgba(108,143,255,0.15)!important;
+  transform:translateY(-2px);
+}
+
+/* Enhanced lobby title */
+.lobby-title{
+  font-size:38px!important;
+  text-shadow:none;
+}
+.lobby-icon{
+  font-size:60px!important;
+  filter:drop-shadow(0 0 30px #6c8fff80) drop-shadow(0 0 60px #ff6b9d40)!important;
+}
+
+/* Paint drip effect on the icon */
+.lobby-icon::after{
+  content:'✏️';
+  position:absolute;
+  font-size:28px;
+  margin-right:-20px;
+  margin-top:10px;
+  opacity:0.4;
+  animation:floatY 3s ease-in-out infinite reverse;
+  filter:drop-shadow(0 0 8px #4ecca3);
+}
+
+/* Sparkle dots around the card */
+.lobby-wrap{
+  position:relative;
+}
+</style>
+
+  <div class="lobby-wrap" style="position:relative;z-index:1;">
     <div class="lobby-hero">
       <span class="lobby-icon">🎨</span>
       <h1 class="lobby-title">Sketch<em>Sync</em></h1>
@@ -1904,6 +2008,176 @@ function onKey(e){
     </div>
   </div>
 </div>
+
+<script>
+/* ═══════════════════════════════════════
+   LOBBY PARTICLE CANVAS
+═══════════════════════════════════════ */
+(function LobbyFX(){
+  const canvas = document.getElementById('lobbyCanvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const COLORS = ['#6c8fff','#ff6b9d','#4ecca3','#feca57','#a29bfe','#48dbfb','#f8a5c2','#78e08f'];
+
+  let W, H, particles = [], brushStrokes = [], starBursts = [];
+  let rafId = null, lastBurst = 0;
+
+  function resize(){
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  class Particle {
+    constructor(){ this.reset(true); }
+    reset(rand){
+      this.x  = Math.random() * (W||window.innerWidth);
+      this.y  = (H||window.innerHeight) + 20 + Math.random()*60;
+      this.vx = (Math.random()-0.5)*0.8;
+      this.vy = -(0.4+Math.random()*1.2);
+      this.r  = 1.5+Math.random()*3;
+      this.c  = COLORS[Math.floor(Math.random()*COLORS.length)];
+      this.alpha=0; this.life=0;
+      this.maxLife=140+Math.random()*120;
+      this.shape=Math.floor(Math.random()*4);
+      this.rot=Math.random()*Math.PI*2;
+      this.rotV=(Math.random()-0.5)*0.04;
+      if(rand) this.life=Math.floor(Math.random()*this.maxLife);
+    }
+    update(){
+      this.life++;
+      if(this.life<20) this.alpha=this.life/20;
+      else if(this.life>this.maxLife-30) this.alpha=(this.maxLife-this.life)/30;
+      else this.alpha=1;
+      this.x+=this.vx+Math.sin(this.life*0.03)*0.3;
+      this.y+=this.vy; this.rot+=this.rotV;
+      if(this.life>=this.maxLife) this.reset(false);
+    }
+    draw(){
+      ctx.save();
+      ctx.globalAlpha=this.alpha*0.75;
+      ctx.fillStyle=this.c; ctx.strokeStyle=this.c;
+      ctx.shadowColor=this.c; ctx.shadowBlur=10;
+      ctx.translate(this.x,this.y); ctx.rotate(this.rot);
+      const s=this.r;
+      if(this.shape===0){
+        ctx.beginPath(); ctx.arc(0,0,s,0,Math.PI*2); ctx.fill();
+      } else if(this.shape===1){
+        ctx.beginPath();
+        for(let i=0;i<5;i++){
+          const a=(i*4*Math.PI/5)-Math.PI/2;
+          const b=(i*4*Math.PI/5+2*Math.PI/5)-Math.PI/2;
+          if(i===0) ctx.moveTo(Math.cos(a)*s*2,Math.sin(a)*s*2);
+          else ctx.lineTo(Math.cos(a)*s*2,Math.sin(a)*s*2);
+          ctx.lineTo(Math.cos(b)*s,Math.sin(b)*s);
+        }
+        ctx.closePath(); ctx.fill();
+      } else if(this.shape===2){
+        ctx.beginPath();
+        ctx.moveTo(0,-s*2); ctx.lineTo(s*1.7,s*1.2); ctx.lineTo(-s*1.7,s*1.2);
+        ctx.closePath(); ctx.fill();
+      } else {
+        ctx.fillRect(-s,-s,s*2,s*2);
+      }
+      ctx.restore();
+    }
+  }
+
+  class BrushStroke {
+    constructor(){ this.reset(); }
+    reset(){
+      this.x=-150; this.y=100+Math.random()*((H||600)-200);
+      this.speed=0.25+Math.random()*0.4;
+      this.c=COLORS[Math.floor(Math.random()*COLORS.length)];
+      this.alpha=0; this.life=0;
+      this.len=60+Math.random()*80; this.thick=2+Math.random()*4;
+      this.wave=Math.random()*Math.PI*2; this.amp=15+Math.random()*25;
+      this.pts=[];
+      for(let i=0;i<=20;i++) this.pts.push({x:(i/20)*this.len,y:Math.sin(this.wave+(i/20)*Math.PI*2)*this.amp*(0.3+i/20*0.7)});
+    }
+    update(){
+      this.life++; this.x+=this.speed;
+      if(this.life<40) this.alpha=this.life/40;
+      else if(this.x>W+200){ this.reset(); this.life=0; }
+      else if(this.x>W-50) this.alpha=Math.max(0,this.alpha-0.015);
+    }
+    draw(){
+      if(this.pts.length<2) return;
+      ctx.save(); ctx.globalAlpha=this.alpha*0.2;
+      ctx.strokeStyle=this.c; ctx.lineWidth=this.thick;
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.shadowColor=this.c; ctx.shadowBlur=14;
+      ctx.beginPath();
+      ctx.moveTo(this.x+this.pts[0].x,this.y+this.pts[0].y);
+      for(let i=1;i<this.pts.length;i++) ctx.lineTo(this.x+this.pts[i].x,this.y+this.pts[i].y);
+      ctx.stroke(); ctx.restore();
+    }
+  }
+
+  class Burst {
+    constructor(x,y){
+      this.x=x; this.y=y;
+      this.c=COLORS[Math.floor(Math.random()*COLORS.length)];
+      this.drops=[]; this.life=0;
+      const n=6+Math.floor(Math.random()*8);
+      for(let i=0;i<n;i++){
+        const a=Math.random()*Math.PI*2, v=1+Math.random()*4;
+        this.drops.push({x:0,y:0,vx:Math.cos(a)*v,vy:Math.sin(a)*v-1,r:2+Math.random()*4,alpha:1});
+      }
+    }
+    update(){
+      this.life++;
+      this.drops.forEach(d=>{ d.x+=d.vx; d.y+=d.vy; d.vy+=0.08; d.alpha-=0.022; d.r*=0.98; });
+      return this.life<60&&this.drops.some(d=>d.alpha>0);
+    }
+    draw(){
+      this.drops.forEach(d=>{
+        if(d.alpha<=0) return;
+        ctx.save(); ctx.globalAlpha=d.alpha*0.7;
+        ctx.fillStyle=this.c; ctx.shadowColor=this.c; ctx.shadowBlur=8;
+        ctx.beginPath(); ctx.arc(this.x+d.x,this.y+d.y,Math.max(0.5,d.r),0,Math.PI*2); ctx.fill();
+        ctx.restore();
+      });
+    }
+  }
+
+  function init(){
+    resize();
+    particles=Array.from({length:65},()=>new Particle());
+    brushStrokes=Array.from({length:7},()=>{ const b=new BrushStroke(); b.x=Math.random()*W; return b; });
+  }
+
+  function loop(ts){
+    ctx.clearRect(0,0,W,H);
+    if(ts-lastBurst>2200){ lastBurst=ts; starBursts.push(new Burst(120+Math.random()*(W-240),80+Math.random()*(H-160))); }
+    brushStrokes.forEach(b=>{ b.update(); b.draw(); });
+    particles.forEach(p=>{ p.update(); p.draw(); });
+    starBursts=starBursts.filter(b=>{ const alive=b.update(); b.draw(); return alive; });
+    rafId=requestAnimationFrame(loop);
+  }
+
+  function start(){ if(!rafId){ init(); rafId=requestAnimationFrame(loop); } }
+  function stop(){ if(rafId){ cancelAnimationFrame(rafId); rafId=null; } }
+
+  // Click bursts
+  document.getElementById('lobby').addEventListener('pointerdown',e=>{
+    for(let i=0;i<3;i++) starBursts.push(new Burst(e.clientX+(Math.random()-.5)*30,e.clientY+(Math.random()-.5)*30));
+  });
+
+  // Watch lobby visibility
+  const lobbyEl=document.getElementById('lobby');
+  const obs=new MutationObserver(()=>{
+    const v=lobbyEl.style.display!=='none'&&!lobbyEl.classList.contains('hide');
+    v ? start() : stop();
+  });
+  obs.observe(lobbyEl,{attributes:true,attributeFilter:['style','class']});
+  if(lobbyEl.style.display!=='none') start();
+
+  window.addEventListener('resize',resize);
+  // expose so showLobby can trigger it
+  window._lobbyFXStart=start;
+})();
+</script>
 
 <script>
 /* ═══════════════════════════════════════════
