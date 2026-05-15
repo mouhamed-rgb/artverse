@@ -656,6 +656,64 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
   display:none;
 }
 
+/* ── Fill toggle track ── */
+#fillShapeToggle:checked + #fillToggleTrack { background: var(--accent); }
+#fillShapeToggle:checked ~ #fillToggleThumb { transform: translateX(16px); }
+
+/* ── Canvas floating toolbar ── */
+#canvasToolbar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: rgba(10,12,20,0.82);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border2);
+  border-radius: 999px;
+  box-shadow: 0 4px 24px rgba(0,0,0,.5), 0 0 0 1px var(--border0), inset 0 1px 0 var(--border1);
+  transition: opacity .2s;
+}
+#canvasToolbar:hover { opacity: 1 !important; }
+.ctbtn {
+  background: transparent;
+  border: none;
+  color: var(--txt2);
+  cursor: pointer;
+  font-size: 14px;
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s;
+}
+.ctbtn:hover { background: var(--accent-g); color: var(--accent); }
+.ctbtn.on { background: var(--accent-g); color: var(--accent); }
+
+/* ── Canvas grid overlay ── */
+.canvas-grid-on #cvBase {
+  background-image:
+    linear-gradient(rgba(108,143,255,.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,143,255,.07) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Canvas zoom transform origin ── */
+#cvMain, #cvBase, #cvPreview, #cvOverlay {
+  transform-origin: top left;
+  transition: none;
+}
+
+/* ── Improved status bar ── */
+.status-bar {
+  background: rgba(5,6,8,0.7) !important;
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border1) !important;
+}
+
 /* Pan cursor */
 .pan-mode #cvMain{cursor:grab !important}
 .pan-mode #cvMain:active{cursor:grabbing !important}
@@ -823,12 +881,16 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
     <div class="mobile-toolbar-strip" id="mobileStrip">
       <button id="mobileDrawerToggle" onclick="toggleDrawer()" title="الأدوات">🎨</button>
       <div id="mobileCurColor" onclick="document.getElementById('cpicker').click()" title="اللون"></div>
-      <button class="mobile-tool-btn on" data-tool="pen"    onclick="setTool('pen');setActiveMobileBtn(this)"    title="قلم">✏️</button>
-      <button class="mobile-tool-btn"    data-tool="eraser" onclick="setTool('eraser');setActiveMobileBtn(this)" title="ممحاة">🧹</button>
-      <button class="mobile-tool-btn"    data-tool="line"   onclick="setTool('line');setActiveMobileBtn(this)"   title="خط">📏</button>
-      <button class="mobile-tool-btn"    data-tool="rect"   onclick="setTool('rect');setActiveMobileBtn(this)"   title="مستطيل">⬜</button>
-      <button class="mobile-tool-btn"    data-tool="circle" onclick="setTool('circle');setActiveMobileBtn(this)" title="دائرة">⭕</button>
-      <button class="mobile-tool-btn"    id="panModeBtn"    onclick="togglePanMode()"                            title="تحريك">🤚</button>
+      <button class="mobile-tool-btn on" data-tool="pen"      onclick="setTool('pen');setActiveMobileBtn(this)"      title="قلم">✏️</button>
+      <button class="mobile-tool-btn"    data-tool="eraser"   onclick="setTool('eraser');setActiveMobileBtn(this)"   title="ممحاة">🧹</button>
+      <button class="mobile-tool-btn"    data-tool="line"     onclick="setTool('line');setActiveMobileBtn(this)"     title="خط">📏</button>
+      <button class="mobile-tool-btn"    data-tool="rect"     onclick="setTool('rect');setActiveMobileBtn(this)"     title="مستطيل">⬜</button>
+      <button class="mobile-tool-btn"    data-tool="circle"   onclick="setTool('circle');setActiveMobileBtn(this)"   title="دائرة">⭕</button>
+      <button class="mobile-tool-btn"    data-tool="spray"    onclick="setTool('spray');setActiveMobileBtn(this)"    title="رش">💨</button>
+      <button class="mobile-tool-btn"    data-tool="arrow"    onclick="setTool('arrow');setActiveMobileBtn(this)"    title="سهم">➡️</button>
+      <button class="mobile-tool-btn"    data-tool="star"     onclick="setTool('star');setActiveMobileBtn(this)"     title="نجمة">⭐</button>
+      <button class="mobile-tool-btn"    data-tool="text"     onclick="setTool('text');setActiveMobileBtn(this)"     title="نص">🔤</button>
+      <button class="mobile-tool-btn"    id="panModeBtn"      onclick="togglePanMode()"                              title="تحريك">🤚</button>
     </div>
 
     <div class="drawer-inner">
@@ -866,12 +928,41 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
 
     <p class="sec-lbl">الأدوات</p>
     <div class="tools-grid" id="toolsGrid">
-      <button class="tbtn on" data-tool="pen"    onclick="setTool('pen')">    <span class="tbtn-ico">✏️</span><span>قلم</span></button>
-      <button class="tbtn"    data-tool="eraser" onclick="setTool('eraser')"> <span class="tbtn-ico">🧹</span><span>ممحاة</span></button>
-      <button class="tbtn"    data-tool="line"   onclick="setTool('line')">   <span class="tbtn-ico">📏</span><span>خط</span></button>
-      <button class="tbtn"    data-tool="rect"   onclick="setTool('rect')">   <span class="tbtn-ico">⬜</span><span>مستطيل</span></button>
-      <button class="tbtn"    data-tool="circle" onclick="setTool('circle')"> <span class="tbtn-ico">⭕</span><span>دائرة</span></button>
-      <button class="tbtn"    data-tool="fill"   onclick="setTool('fill')">   <span class="tbtn-ico">🪣</span><span>تعبئة</span></button>
+      <button class="tbtn on" data-tool="pen"      onclick="setTool('pen')">      <span class="tbtn-ico">✏️</span><span>قلم</span></button>
+      <button class="tbtn"   data-tool="eraser"    onclick="setTool('eraser')">   <span class="tbtn-ico">🧹</span><span>ممحاة</span></button>
+      <button class="tbtn"   data-tool="line"      onclick="setTool('line')">     <span class="tbtn-ico">📏</span><span>خط</span></button>
+      <button class="tbtn"   data-tool="rect"      onclick="setTool('rect')">     <span class="tbtn-ico">⬜</span><span>مستطيل</span></button>
+      <button class="tbtn"   data-tool="circle"    onclick="setTool('circle')">   <span class="tbtn-ico">⭕</span><span>دائرة</span></button>
+      <button class="tbtn"   data-tool="fill"      onclick="setTool('fill')">     <span class="tbtn-ico">🪣</span><span>تعبئة</span></button>
+      <button class="tbtn"   data-tool="spray"     onclick="setTool('spray')">    <span class="tbtn-ico">💨</span><span>رش</span></button>
+      <button class="tbtn"   data-tool="arrow"     onclick="setTool('arrow')">    <span class="tbtn-ico">➡️</span><span>سهم</span></button>
+      <button class="tbtn"   data-tool="star"      onclick="setTool('star')">     <span class="tbtn-ico">⭐</span><span>نجمة</span></button>
+      <button class="tbtn"   data-tool="diamond"   onclick="setTool('diamond')">  <span class="tbtn-ico">💠</span><span>معين</span></button>
+      <button class="tbtn"   data-tool="triangle"  onclick="setTool('triangle')"> <span class="tbtn-ico">🔺</span><span>مثلث</span></button>
+      <button class="tbtn"   data-tool="text"      onclick="setTool('text')">     <span class="tbtn-ico">🔤</span><span>نص</span></button>
+    </div>
+
+    <!-- Text tool options (shown only when text tool active) -->
+    <div id="textToolOpts" style="display:none;margin-top:8px;">
+      <p class="sec-lbl">خيارات النص</p>
+      <div class="sl-wrap">
+        <div class="sl-head"><span class="sl-lbl">حجم الخط</span><span class="sl-val" id="fontSzVal">24px</span></div>
+        <input type="range" id="fontSzSlider" min="10" max="120" value="24" oninput="fontSz=+this.value;document.getElementById('fontSzVal').textContent=this.value+'px'">
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px;">
+        <button class="tbtn" id="fontBoldBtn"   onclick="toggleFontBold()"   title="عريض" style="flex:1"><span class="tbtn-ico" style="font-weight:700">B</span><span>عريض</span></button>
+        <button class="tbtn" id="fontItalicBtn" onclick="toggleFontItalic()" title="مائل"  style="flex:1"><span class="tbtn-ico" style="font-style:italic">I</span><span>مائل</span></button>
+      </div>
+    </div>
+
+    <!-- Fill toggle -->
+    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:8px 10px;background:rgba(255,255,255,.03);border:1px solid var(--border1);border-radius:var(--r8);">
+      <span style="font-size:12px;color:var(--txt1);font-family:var(--font2);flex:1;">تعبئة الأشكال</span>
+      <label style="position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;">
+        <input type="checkbox" id="fillShapeToggle" onchange="shapeFill=this.checked" style="opacity:0;width:0;height:0;">
+        <span id="fillToggleTrack" style="position:absolute;inset:0;background:var(--border2);border-radius:10px;transition:.3s;"></span>
+        <span id="fillToggleThumb" style="position:absolute;left:2px;top:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:.3s;box-shadow:0 1px 4px #0006;"></span>
+      </label>
     </div>
 
     <div class="ur-row">
@@ -909,6 +1000,21 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
     <canvas id="cvMain"></canvas>
     <canvas id="cvOverlay"></canvas>
 
+    <!-- Canvas floating toolbar -->
+    <div id="canvasToolbar">
+      <button class="ctbtn" onclick="zoomCanvas(-0.1)" title="تصغير">−</button>
+      <span id="zoomLbl" style="font-family:var(--mono);font-size:11px;color:var(--txt2);min-width:36px;text-align:center;">100%</span>
+      <button class="ctbtn" onclick="zoomCanvas(+0.1)" title="تكبير">+</button>
+      <button class="ctbtn" onclick="zoomReset()" title="إعادة ضبط">⊙</button>
+      <div style="width:1px;height:16px;background:var(--border2);margin:0 2px;"></div>
+      <button class="ctbtn" id="gridBtn" onclick="toggleGrid()" title="الشبكة">⊞</button>
+      <button class="ctbtn" onclick="downloadCanvas()" title="تحميل">⬇</button>
+    </div>
+
+    <!-- Text input overlay -->
+    <input id="textInput" type="text" placeholder="اكتب هنا…" autocomplete="off"
+      style="position:absolute;display:none;z-index:20;background:transparent;border:none;border-bottom:2px solid var(--accent);outline:none;color:var(--txt0);font-family:var(--font2);padding:4px 8px;caret-color:var(--accent);">
+
     <div class="status-bar">
       <div class="sb-dot" id="sbDot"></div>
       <span id="sbTxt">متصل</span>
@@ -943,6 +1049,15 @@ let penSegments=[];             // batched pen points for one stroke
 let undoStack=[], redoStack=[]; // local imageData snapshots (max 20)
 let snapshotCounter=0;          // how many strokes since last server snapshot
 const SNAPSHOT_EVERY=50;
+
+/* ─── NEW TOOL STATE ──────────────────────────── */
+let shapeFill=false;            // fill shapes toggle
+let fontSz=24;                  // text tool font size
+let fontBold=false, fontItalic=false;
+let sprayTimer=null;            // spray interval
+let canvasZoom=1;               // zoom level
+let gridOn=false;               // grid toggle
+
 
 /* ─── CANVAS REFS ─────────────────────────────── */
 let cvMain, cvBase, cvPrev, cvOver;
@@ -1180,11 +1295,37 @@ function setOp(v){
 }
 
 function setTool(t){
+  // Stop spray if switching away
+  if(sprayTimer && t!=='spray'){ clearInterval(sprayTimer); sprayTimer=null; }
+  // Commit any in-progress text
+  if(curTool==='text') commitTextInput();
+
   curTool=t;
   document.querySelectorAll('.tbtn').forEach(b=>b.classList.toggle('on',b.dataset.tool===t));
   document.getElementById('wrap').classList.toggle('eraser-active',t==='eraser');
-  const names={pen:'قلم',eraser:'ممحاة',line:'خط',rect:'مستطيل',circle:'دائرة',fill:'تعبئة'};
+
+  // Show/hide text options panel
+  const textOpts=document.getElementById('textToolOpts');
+  if(textOpts) textOpts.style.display = (t==='text') ? 'block' : 'none';
+
+  // Cursor style
+  const cursors={pen:'crosshair',eraser:'none',fill:'crosshair',spray:'crosshair',text:'text',
+    line:'crosshair',rect:'crosshair',circle:'crosshair',arrow:'crosshair',
+    star:'crosshair',diamond:'crosshair',triangle:'crosshair'};
+  document.getElementById('cvMain').style.cursor = cursors[t]||'crosshair';
+
+  const names={pen:'قلم',eraser:'ممحاة',line:'خط',rect:'مستطيل',circle:'دائرة',fill:'تعبئة',
+    spray:'رش',arrow:'سهم',star:'نجمة',diamond:'معين',triangle:'مثلث',text:'نص'};
   document.getElementById('sbTool').textContent=names[t]||t;
+}
+
+function toggleFontBold(){
+  fontBold=!fontBold;
+  document.getElementById('fontBoldBtn').classList.toggle('on',fontBold);
+}
+function toggleFontItalic(){
+  fontItalic=!fontItalic;
+  document.getElementById('fontItalicBtn').classList.toggle('on',fontItalic);
 }
 
 /* ─── MOBILE DRAWER ───────────────────────────── */
@@ -1255,7 +1396,7 @@ function onDown(e){
   const p=pt(e); lx=p.x; ly=p.y; sx=p.x; sy=p.y;
   drawing=true; penSegments=[];
 
-  if(['line','rect','circle'].includes(curTool)){
+  if(['line','rect','circle','arrow','star','diamond','triangle'].includes(curTool)){
     saveUndoSnapshot();
   }
 
@@ -1264,6 +1405,19 @@ function onDown(e){
     floodFill(Math.round(p.x),Math.round(p.y),curColor,ctxMain);
     socket.emit('fill',{x:Math.round(p.x),y:Math.round(p.y),color:curColor});
     triggerSnapshot();
+    return;
+  }
+
+  if(curTool==='text'){
+    commitTextInput();
+    showTextInput(p.x, p.y);
+    return;
+  }
+
+  if(curTool==='spray'){
+    saveUndoSnapshot();
+    doSpray(p.x, p.y);
+    sprayTimer = setInterval(()=>{ if(drawing) doSpray(lx,ly); }, 30);
     return;
   }
 
@@ -1295,34 +1449,37 @@ function onMove(e){
     eraseSegment(ctxMain,lx,ly,p.x,p.y);
     penSegments.push(p.x,p.y);
     lx=p.x; ly=p.y;
+  } else if(curTool==='spray'){
+    lx=p.x; ly=p.y;
   } else if(curTool==='line'){
     ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
-    ctxPrev.globalAlpha=curOp;
-    ctxPrev.strokeStyle=curColor;
-    ctxPrev.lineWidth=curSz;
-    ctxPrev.lineCap='round';
-    ctxPrev.beginPath();
-    ctxPrev.moveTo(sx,sy);
-    ctxPrev.lineTo(p.x,p.y);
-    ctxPrev.stroke();
-    ctxPrev.globalAlpha=1;
+    ctxPrev.globalAlpha=curOp; ctxPrev.strokeStyle=curColor; ctxPrev.lineWidth=curSz; ctxPrev.lineCap='round';
+    ctxPrev.beginPath(); ctxPrev.moveTo(sx,sy); ctxPrev.lineTo(p.x,p.y); ctxPrev.stroke(); ctxPrev.globalAlpha=1;
   } else if(curTool==='rect'){
     ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
-    ctxPrev.globalAlpha=curOp;
-    ctxPrev.strokeStyle=curColor;
-    ctxPrev.lineWidth=curSz;
-    ctxPrev.strokeRect(sx,sy,p.x-sx,p.y-sy);
+    ctxPrev.globalAlpha=curOp; ctxPrev.strokeStyle=curColor; ctxPrev.lineWidth=curSz;
+    if(shapeFill){ ctxPrev.fillStyle=curColor; ctxPrev.fillRect(sx,sy,p.x-sx,p.y-sy); }
+    else ctxPrev.strokeRect(sx,sy,p.x-sx,p.y-sy);
     ctxPrev.globalAlpha=1;
   } else if(curTool==='circle'){
     ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
     const rx=(p.x-sx)/2, ry=(p.y-sy)/2;
-    ctxPrev.globalAlpha=curOp;
-    ctxPrev.strokeStyle=curColor;
-    ctxPrev.lineWidth=curSz;
-    ctxPrev.beginPath();
-    ctxPrev.ellipse(sx+rx,sy+ry,Math.abs(rx),Math.abs(ry),0,0,Math.PI*2);
-    ctxPrev.stroke();
+    ctxPrev.globalAlpha=curOp; ctxPrev.strokeStyle=curColor; ctxPrev.lineWidth=curSz;
+    ctxPrev.beginPath(); ctxPrev.ellipse(sx+rx,sy+ry,Math.abs(rx),Math.abs(ry),0,0,Math.PI*2);
+    if(shapeFill){ ctxPrev.fillStyle=curColor; ctxPrev.fill(); } else ctxPrev.stroke();
     ctxPrev.globalAlpha=1;
+  } else if(curTool==='arrow'){
+    ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
+    previewArrow(ctxPrev,sx,sy,p.x,p.y);
+  } else if(curTool==='star'){
+    ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
+    previewStar(ctxPrev,sx,sy,p.x,p.y);
+  } else if(curTool==='diamond'){
+    ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
+    previewDiamond(ctxPrev,sx,sy,p.x,p.y);
+  } else if(curTool==='triangle'){
+    ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
+    previewTriangle(ctxPrev,sx,sy,p.x,p.y);
   }
 }
 
@@ -1331,18 +1488,20 @@ function onUp(e){
   drawing=false;
   const p=pt(e);
 
+  // Stop spray
+  if(sprayTimer){ clearInterval(sprayTimer); sprayTimer=null;
+    if(penSegments.length>=2){
+      socket.emit('stroke',{tool:'spray',pts:penSegments,color:curColor,sz:curSz,op:curOp});
+      triggerSnapshot();
+    }
+    penSegments=[]; return;
+  }
+
   ctxPrev.clearRect(0,0,cvPrev.width,cvPrev.height);
 
   if(curTool==='pen'||curTool==='eraser'){
-    // Emit entire stroke as one packet
     if(penSegments.length>=2){
-      socket.emit('stroke',{
-        tool:curTool,
-        pts:penSegments,         // flat [x0,y0,x1,y1,...]
-        color:curColor,
-        sz:curSz,
-        op:curOp
-      });
+      socket.emit('stroke',{tool:curTool,pts:penSegments,color:curColor,sz:curSz,op:curOp});
       triggerSnapshot();
     }
     penSegments=[];
@@ -1351,12 +1510,28 @@ function onUp(e){
     socket.emit('shape',{kind:'line',x1:sx,y1:sy,x2:p.x,y2:p.y,color:curColor,sz:curSz,op:curOp});
     triggerSnapshot();
   } else if(curTool==='rect'){
-    drawRect(ctxMain,sx,sy,p.x-sx,p.y-sy,curColor,curSz,curOp);
-    socket.emit('shape',{kind:'rect',x:sx,y:sy,w:p.x-sx,h:p.y-sy,color:curColor,sz:curSz,op:curOp});
+    drawRect(ctxMain,sx,sy,p.x-sx,p.y-sy,curColor,curSz,curOp,shapeFill);
+    socket.emit('shape',{kind:'rect',x:sx,y:sy,w:p.x-sx,h:p.y-sy,color:curColor,sz:curSz,op:curOp,fill:shapeFill});
     triggerSnapshot();
   } else if(curTool==='circle'){
-    drawCircle(ctxMain,sx,sy,p.x,p.y,curColor,curSz,curOp);
-    socket.emit('shape',{kind:'circle',x1:sx,y1:sy,x2:p.x,y2:p.y,color:curColor,sz:curSz,op:curOp});
+    drawCircle(ctxMain,sx,sy,p.x,p.y,curColor,curSz,curOp,shapeFill);
+    socket.emit('shape',{kind:'circle',x1:sx,y1:sy,x2:p.x,y2:p.y,color:curColor,sz:curSz,op:curOp,fill:shapeFill});
+    triggerSnapshot();
+  } else if(curTool==='arrow'){
+    drawArrow(ctxMain,sx,sy,p.x,p.y,curColor,curSz,curOp);
+    socket.emit('shape',{kind:'arrow',x1:sx,y1:sy,x2:p.x,y2:p.y,color:curColor,sz:curSz,op:curOp});
+    triggerSnapshot();
+  } else if(curTool==='star'){
+    drawStar(ctxMain,sx,sy,p.x,p.y,curColor,curSz,curOp,shapeFill);
+    socket.emit('shape',{kind:'star',x1:sx,y1:sy,x2:p.x,y2:p.y,color:curColor,sz:curSz,op:curOp,fill:shapeFill});
+    triggerSnapshot();
+  } else if(curTool==='diamond'){
+    drawDiamond(ctxMain,sx,sy,p.x,p.y,curColor,curSz,curOp,shapeFill);
+    socket.emit('shape',{kind:'diamond',x1:sx,y1:sy,x2:p.x,y2:p.y,color:curColor,sz:curSz,op:curOp,fill:shapeFill});
+    triggerSnapshot();
+  } else if(curTool==='triangle'){
+    drawTriangle(ctxMain,sx,sy,p.x,p.y,curColor,curSz,curOp,shapeFill);
+    socket.emit('shape',{kind:'triangle',x1:sx,y1:sy,x2:p.x,y2:p.y,color:curColor,sz:curSz,op:curOp,fill:shapeFill});
     triggerSnapshot();
   }
 }
@@ -1380,7 +1555,8 @@ function togglePanMode(){
 
 function applyPanTransform(){
   [cvMain,cvBase,cvPrev,cvOver].forEach(c=>{
-    c.style.transform = `translate(${panDeltaX}px, ${panDeltaY}px)`;
+    c.style.transformOrigin='top left';
+    c.style.transform=`scale(${canvasZoom}) translate(${panDeltaX/canvasZoom}px,${panDeltaY/canvasZoom}px)`;
   });
 }
 
@@ -1466,22 +1642,164 @@ function drawLine(ctx,x1,y1,x2,y2,c,sz,op){
   ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.globalAlpha=1;
 }
 
-function drawRect(ctx,x,y,w,h,c,sz,op){
+function drawRect(ctx,x,y,w,h,c,sz,op,fill){
   ctx.globalAlpha=op;ctx.strokeStyle=c;ctx.lineWidth=sz;
+  if(fill){ctx.fillStyle=c;ctx.fillRect(x,y,w,h);}
   ctx.strokeRect(x,y,w,h);ctx.globalAlpha=1;
 }
 
-function drawCircle(ctx,x1,y1,x2,y2,c,sz,op){
+function drawCircle(ctx,x1,y1,x2,y2,c,sz,op,fill){
   const rx=(x2-x1)/2, ry=(y2-y1)/2;
   ctx.globalAlpha=op;ctx.strokeStyle=c;ctx.lineWidth=sz;
   ctx.beginPath();
   ctx.ellipse(x1+rx,y1+ry,Math.abs(rx),Math.abs(ry),0,0,Math.PI*2);
+  if(fill){ctx.fillStyle=c;ctx.fill();}
   ctx.stroke();ctx.globalAlpha=1;
 }
+
+/* ── ARROW ── */
+function drawArrow(ctx,x1,y1,x2,y2,c,sz,op){
+  ctx.save();ctx.globalAlpha=op;ctx.strokeStyle=c;ctx.fillStyle=c;ctx.lineWidth=sz;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  const angle=Math.atan2(y2-y1,x2-x1);
+  const hs=Math.max(10,sz*4);
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-hs*Math.cos(angle-Math.PI/7),y2-hs*Math.sin(angle-Math.PI/7));
+  ctx.lineTo(x2-hs*Math.cos(angle+Math.PI/7),y2-hs*Math.sin(angle+Math.PI/7));
+  ctx.closePath();ctx.fill();ctx.restore();
+}
+function previewArrow(ctx,x1,y1,x2,y2){
+  ctx.save();ctx.globalAlpha=curOp;drawArrow(ctx,x1,y1,x2,y2,curColor,curSz,curOp);ctx.restore();
+}
+
+/* ── STAR ── */
+function drawStar(ctx,x1,y1,x2,y2,c,sz,op,fill){
+  ctx.save();ctx.globalAlpha=op;ctx.strokeStyle=c;ctx.fillStyle=c;ctx.lineWidth=sz;
+  const cx=(x1+x2)/2, cy=(y1+y2)/2;
+  const rx=Math.abs(x2-x1)/2, ry=Math.abs(y2-y1)/2;
+  const outerR=Math.max(rx,ry), innerR=outerR*0.42;
+  const pts=5;
+  ctx.beginPath();
+  for(let i=0;i<pts*2;i++){
+    const angle=(i*Math.PI/pts)-Math.PI/2;
+    const r = i%2===0 ? outerR : innerR;
+    const px=cx+r*Math.cos(angle)*rx/Math.max(rx,ry);
+    const py=cy+r*Math.sin(angle)*ry/Math.max(rx,ry);
+    i===0?ctx.moveTo(px,py):ctx.lineTo(px,py);
+  }
+  ctx.closePath();
+  if(fill) ctx.fill();
+  ctx.stroke();ctx.restore();
+}
+function previewStar(ctx,x1,y1,x2,y2){ drawStar(ctx,x1,y1,x2,y2,curColor,curSz,curOp,shapeFill); }
+
+/* ── DIAMOND ── */
+function drawDiamond(ctx,x1,y1,x2,y2,c,sz,op,fill){
+  ctx.save();ctx.globalAlpha=op;ctx.strokeStyle=c;ctx.fillStyle=c;ctx.lineWidth=sz;
+  const cx=(x1+x2)/2, cy=(y1+y2)/2;
+  const hw=Math.abs(x2-x1)/2, hh=Math.abs(y2-y1)/2;
+  ctx.beginPath();
+  ctx.moveTo(cx,cy-hh); ctx.lineTo(cx+hw,cy);
+  ctx.lineTo(cx,cy+hh); ctx.lineTo(cx-hw,cy);
+  ctx.closePath();
+  if(fill) ctx.fill();
+  ctx.stroke();ctx.restore();
+}
+function previewDiamond(ctx,x1,y1,x2,y2){ drawDiamond(ctx,x1,y1,x2,y2,curColor,curSz,curOp,shapeFill); }
+
+/* ── TRIANGLE ── */
+function drawTriangle(ctx,x1,y1,x2,y2,c,sz,op,fill){
+  ctx.save();ctx.globalAlpha=op;ctx.strokeStyle=c;ctx.fillStyle=c;ctx.lineWidth=sz;ctx.lineJoin='round';
+  ctx.beginPath();
+  ctx.moveTo((x1+x2)/2,y1);
+  ctx.lineTo(x2,y2);
+  ctx.lineTo(x1,y2);
+  ctx.closePath();
+  if(fill) ctx.fill();
+  ctx.stroke();ctx.restore();
+}
+function previewTriangle(ctx,x1,y1,x2,y2){ drawTriangle(ctx,x1,y1,x2,y2,curColor,curSz,curOp,shapeFill); }
+
+/* ── SPRAY ── */
+function doSpray(x,y){
+  const density=18+Math.round(curSz*0.8);
+  const radius=curSz*4+10;
+  ctxMain.globalAlpha=curOp*0.25;
+  ctxMain.fillStyle=curColor;
+  for(let i=0;i<density;i++){
+    const angle=Math.random()*Math.PI*2;
+    const r=Math.random()*radius;
+    const px=x+r*Math.cos(angle);
+    const py=y+r*Math.sin(angle);
+    ctxMain.beginPath();
+    ctxMain.arc(px,py,Math.random()*1.5+0.5,0,Math.PI*2);
+    ctxMain.fill();
+  }
+  ctxMain.globalAlpha=1;
+  penSegments.push(x,y);
+}
+
+/* ── TEXT ── */
+let textInputX=0, textInputY=0;
+function showTextInput(x,y){
+  textInputX=x; textInputY=y;
+  const inp=document.getElementById('textInput');
+  if(!inp) return;
+  inp.style.left=x+'px'; inp.style.top=(y-fontSz)+'px';
+  inp.style.display='block';
+  inp.style.fontSize=fontSz+'px';
+  inp.style.fontWeight=fontBold?'700':'400';
+  inp.style.fontStyle=fontItalic?'italic':'normal';
+  inp.style.color=curColor;
+  inp.value=''; inp.focus();
+  inp.onkeydown=(ev)=>{ if(ev.key==='Enter'){ ev.preventDefault(); commitTextInput(); } if(ev.key==='Escape') cancelTextInput(); };
+}
+function commitTextInput(){
+  const inp=document.getElementById('textInput');
+  if(!inp||!inp.style||inp.style.display==='none') return;
+  const txt=inp.value.trim();
+  if(txt){
+    saveUndoSnapshot();
+    drawText(ctxMain,txt,textInputX,textInputY,curColor,fontSz,fontBold,fontItalic,curOp);
+    socket.emit('shape',{kind:'text',text:txt,x:textInputX,y:textInputY,color:curColor,
+      fontSize:fontSz,bold:fontBold,italic:fontItalic,op:curOp});
+    triggerSnapshot();
+  }
+  inp.style.display='none'; inp.value='';
+}
+function cancelTextInput(){
+  const inp=document.getElementById('textInput');
+  if(inp){ inp.style.display='none'; inp.value=''; }
+}
+function drawText(ctx,text,x,y,c,size,bold,italic,op){
+  ctx.save();ctx.globalAlpha=op;ctx.fillStyle=c;
+  ctx.font=`${italic?'italic ':''}${bold?'700':'400'} ${size}px Cairo, sans-serif`;
+  ctx.fillText(text,x,y);ctx.restore();
+}
+
 
 /* ─── REMOTE DRAWING ──────────────────────────── */
 function remoteStroke({tool,pts,color,sz,op}){
   if(!pts||pts.length<4) return;
+  if(tool==='spray'){
+    const density=18+Math.round(sz*0.8);
+    const radius=sz*4+10;
+    ctxMain.globalAlpha=(op||1)*0.25;
+    ctxMain.fillStyle=color;
+    for(let i=0;i<pts.length;i+=2){
+      const x=pts[i], y=pts[i+1];
+      for(let j=0;j<density;j++){
+        const angle=Math.random()*Math.PI*2;
+        const r=Math.random()*radius;
+        ctxMain.beginPath();
+        ctxMain.arc(x+r*Math.cos(angle),y+r*Math.sin(angle),Math.random()*1.5+0.5,0,Math.PI*2);
+        ctxMain.fill();
+      }
+    }
+    ctxMain.globalAlpha=1;
+    return;
+  }
   for(let i=0;i<pts.length-2;i+=2){
     if(tool==='eraser'){
       const ctx=ctxMain;
@@ -1503,10 +1821,15 @@ function remoteStroke({tool,pts,color,sz,op}){
   }
 }
 
-function remoteShape({kind,x1,y1,x2,y2,x,y,w,h,color,sz,op}){
-  if(kind==='line')   drawLine(ctxMain,x1,y1,x2,y2,color,sz,op||1);
-  if(kind==='rect')   drawRect(ctxMain,x,y,w,h,color,sz,op||1);
-  if(kind==='circle') drawCircle(ctxMain,x1,y1,x2,y2,color,sz,op||1);
+function remoteShape({kind,x1,y1,x2,y2,x,y,w,h,color,sz,op,fill,text,fontSize,bold,italic}){
+  if(kind==='line')     drawLine(ctxMain,x1,y1,x2,y2,color,sz,op||1);
+  if(kind==='rect')     drawRect(ctxMain,x,y,w,h,color,sz,op||1,fill);
+  if(kind==='circle')   drawCircle(ctxMain,x1,y1,x2,y2,color,sz,op||1,fill);
+  if(kind==='arrow')    drawArrow(ctxMain,x1,y1,x2,y2,color,sz,op||1);
+  if(kind==='star')     drawStar(ctxMain,x1,y1,x2,y2,color,sz,op||1,fill);
+  if(kind==='diamond')  drawDiamond(ctxMain,x1,y1,x2,y2,color,sz,op||1,fill);
+  if(kind==='triangle') drawTriangle(ctxMain,x1,y1,x2,y2,color,sz,op||1,fill);
+  if(kind==='text')     drawText(ctxMain,text,x,y,color,fontSize||24,bold,italic,op||1);
 }
 
 function remoteFill({x,y,color}){
@@ -1671,6 +1994,43 @@ function toast(msg){
   toastT=setTimeout(()=>el.classList.remove('on'),2800);
 }
 
+/* ─── ZOOM ────────────────────────────────────── */
+function zoomCanvas(delta){
+  canvasZoom=Math.max(0.25,Math.min(4,canvasZoom+delta));
+  applyZoom();
+}
+function zoomReset(){ canvasZoom=1; applyZoom(); }
+function applyZoom(){
+  [cvMain,cvBase,cvPrev,cvOver].forEach(c=>{
+    c.style.transformOrigin='top left';
+    c.style.transform=`scale(${canvasZoom}) translate(${panDeltaX/canvasZoom}px,${panDeltaY/canvasZoom}px)`;
+  });
+  document.getElementById('zoomLbl').textContent=Math.round(canvasZoom*100)+'%';
+}
+
+/* ─── GRID ────────────────────────────────────── */
+function toggleGrid(){
+  gridOn=!gridOn;
+  const wrap=document.getElementById('wrap');
+  wrap.classList.toggle('canvas-grid-on',gridOn);
+  document.getElementById('gridBtn').classList.toggle('on',gridOn);
+}
+
+/* ─── DOWNLOAD ────────────────────────────────── */
+function downloadCanvas(){
+  // Merge base+main into an offscreen canvas
+  const off=document.createElement('canvas');
+  off.width=cvMain.width; off.height=cvMain.height;
+  const octx=off.getContext('2d');
+  octx.drawImage(cvBase,0,0);
+  octx.drawImage(cvMain,0,0);
+  const link=document.createElement('a');
+  link.download='sketchsync-'+Date.now()+'.png';
+  link.href=off.toDataURL('image/png');
+  link.click();
+  toast('✅ تم تحميل اللوحة!');
+}
+
 /* ─── KEYBOARD ────────────────────────────────── */
 function onKey(e){
   if(!document.getElementById('app').classList.contains('on')) return;
@@ -1682,10 +2042,18 @@ function onKey(e){
   if(k==='r') setTool('rect');
   if(k==='c') setTool('circle');
   if(k==='f') setTool('fill');
+  if(k==='s') setTool('spray');
+  if(k==='a') setTool('arrow');
+  if(k==='t') setTool('text');
+  if(k==='g') toggleGrid();
   if(k==='[') setSz(Math.max(1,curSz-2));
   if(k===']') setSz(Math.min(64,curSz+2));
+  if(k==='+') zoomCanvas(0.1);
+  if(k==='-') zoomCanvas(-0.1);
+  if(k==='0') zoomReset();
   if((e.ctrlKey||e.metaKey)&&k==='z'){e.preventDefault();undo();}
   if((e.ctrlKey||e.metaKey)&&(k==='y'||k==='Z')){e.preventDefault();redo();}
+  if((e.ctrlKey||e.metaKey)&&k==='s'){e.preventDefault();downloadCanvas();}
 }
 </script>
 
