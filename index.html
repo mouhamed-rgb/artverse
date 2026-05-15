@@ -269,6 +269,38 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt0);fo
 .sidebar::-webkit-scrollbar-track{background:transparent}
 .sidebar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
+/* ── Drag-to-scroll handle ── */
+#sbScrollHandle {
+  position: absolute;
+  top: 0; right: 0;
+  width: 14px;
+  height: 100%;
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 8px;
+  cursor: ns-resize;
+  user-select: none;
+}
+#sbScrollThumb {
+  width: 4px;
+  border-radius: 4px;
+  background: var(--border2);
+  transition: background .15s, width .15s;
+  position: relative;
+  min-height: 32px;
+  cursor: ns-resize;
+}
+#sbScrollHandle:hover #sbScrollThumb,
+#sbScrollHandle.dragging #sbScrollThumb {
+  background: var(--accent);
+  width: 6px;
+  box-shadow: 0 0 8px var(--accent);
+}
+/* Sidebar must be position:relative for handle to position correctly */
+.sidebar { position: relative; }
+
 .sb-brand{
   display:flex;align-items:center;gap:10px;
   padding:4px 0 14px;border-bottom:1px solid var(--border1);
@@ -960,6 +992,11 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
 
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
+
+    <!-- Drag-to-scroll handle -->
+    <div id="sbScrollHandle" title="اسحب للتمرير">
+      <div id="sbScrollThumb"></div>
+    </div>
 
     <!-- Mobile quick toolbar strip (always visible at bottom) -->
     <div class="mobile-toolbar-strip" id="mobileStrip">
@@ -3528,6 +3565,99 @@ function onKey(e){
 
 })();
 </script>
+<script>
+/* ═══════════════════════════════════════════════
+   SIDEBAR DRAG-TO-SCROLL HANDLE
+   A thin thumb on the right edge of the sidebar.
+   Drag it up/down to scroll the sidebar content.
+═══════════════════════════════════════════════ */
+(function SidebarScrollHandle(){
+  const sidebar = document.getElementById('sidebar');
+  const handle  = document.getElementById('sbScrollHandle');
+  const thumb   = document.getElementById('sbScrollThumb');
+
+  if(!sidebar || !handle || !thumb) return;
+
+  let dragging = false;
+  let dragStartY = 0;
+  let dragStartScrollTop = 0;
+
+  /* ── Update thumb size & position ── */
+  function updateThumb(){
+    const visible   = sidebar.clientHeight;
+    const total     = sidebar.scrollHeight;
+    if(total <= visible){
+      thumb.style.display = 'none';
+      return;
+    }
+    thumb.style.display = 'block';
+
+    // Track height = sidebar height minus padding
+    const trackH = visible - 16;
+    const ratio  = visible / total;
+    const thumbH = Math.max(32, trackH * ratio);
+    thumb.style.height = thumbH + 'px';
+
+    // Thumb top position
+    const scrollRatio = sidebar.scrollTop / (total - visible);
+    const maxTop = trackH - thumbH;
+    thumb.style.marginTop = (scrollRatio * maxTop) + 'px';
+  }
+
+  /* ── Drag start ── */
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    dragStartY = e.clientY;
+    dragStartScrollTop = sidebar.scrollTop;
+    handle.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  handle.addEventListener('touchstart', e => {
+    dragging = true;
+    dragStartY = e.touches[0].clientY;
+    dragStartScrollTop = sidebar.scrollTop;
+    handle.classList.add('dragging');
+    e.preventDefault();
+  }, { passive: false });
+
+  /* ── Drag move ── */
+  function onMove(clientY){
+    if(!dragging) return;
+    const visible = sidebar.clientHeight;
+    const total   = sidebar.scrollHeight;
+    const trackH  = visible - 16;
+    const thumbH  = Math.max(32, trackH * (visible / total));
+    const maxTop  = trackH - thumbH;
+    const maxScroll = total - visible;
+
+    const dy = clientY - dragStartY;
+    const scrollDelta = dy * (maxScroll / maxTop);
+    sidebar.scrollTop = Math.max(0, Math.min(maxScroll, dragStartScrollTop + scrollDelta));
+  }
+
+  document.addEventListener('mousemove',  e => onMove(e.clientY));
+  document.addEventListener('touchmove',  e => onMove(e.touches[0].clientY), { passive: true });
+
+  /* ── Drag end ── */
+  function stopDrag(){
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect = '';
+  }
+  document.addEventListener('mouseup',  stopDrag);
+  document.addEventListener('touchend', stopDrag);
+
+  /* ── Sync on scroll ── */
+  sidebar.addEventListener('scroll', updateThumb, { passive: true });
+
+  /* ── Init & resize ── */
+  updateThumb();
+  new ResizeObserver(updateThumb).observe(sidebar);
+})();
+</script>
+
 <script>
 /* ═══════════════════════════════════════════════════
    DESKTOP SIDEBAR COLLAPSE / EXPAND
