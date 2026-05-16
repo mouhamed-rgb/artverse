@@ -962,7 +962,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
 
     <div class="card">
       <p class="field-label">اسمك (اختياري)</p>
-      <input class="field" id="nameInput" type="text" placeholder="رسام مجهول" maxlength="20" autocomplete="off">
+      <input class="field" id="nameInput" type="text" placeholder="رسام مجهول" maxlength="20" autocomplete="off" oninput="this.value=this.value.replace(/<[^>]*>/g,'')">
 
       <!-- Game Mode Toggle -->
       <p class="field-label">وضع اللعبة</p>
@@ -1154,25 +1154,9 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.3);box-shadow:0 
       <div style="width:1px;height:16px;background:var(--border2);margin:0 2px;"></div>
       <button class="ctbtn" id="gridBtn" onclick="toggleGrid()" title="الشبكة">⊞</button>
       <button class="ctbtn" onclick="downloadCanvas()" title="تحميل">⬇</button>
-      <div style="width:1px;height:16px;background:var(--border2);margin:0 2px;"></div>
-      <button class="ctbtn" id="camBtn" onclick="toggleCamera()" title="الرسم بالإصبع عبر الكاميرا" style="font-size:16px;">📷</button>
     </div>
 
-    <!-- Camera Finger Drawing Overlay -->
-    <div id="cameraOverlay" style="display:none;position:absolute;inset:0;z-index:30;pointer-events:none;">
-      <video id="camVideo" autoplay playsinline muted
-        style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.22;border-radius:0;transform:scaleX(-1);"></video>
-      <canvas id="camCanvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></canvas>
-      <!-- Close button -->
-      <button onclick="toggleCamera()" style="pointer-events:all;position:absolute;top:12px;right:12px;z-index:40;background:rgba(240,96,96,0.85);border:none;border-radius:50%;width:36px;height:36px;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px #f0606066;backdrop-filter:blur(6px);" title="إغلاق الكاميرا">✕</button>
-      <!-- Status badge -->
-      <div id="camStatus" style="pointer-events:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(10,12,20,0.82);border:1px solid var(--border2);border-radius:999px;padding:5px 16px;font-size:11px;font-family:var(--mono);color:var(--accent);backdrop-filter:blur(12px);display:flex;align-items:center;gap:8px;">
-        <span style="width:7px;height:7px;border-radius:50%;background:var(--accent3);box-shadow:0 0 8px var(--accent3);display:inline-block;animation:pulse 1.5s ease-in-out infinite;"></span>
-        <span id="camStatusTxt">جاري التحميل…</span>
-      </div>
-      <!-- Finger dot indicator -->
-      <div id="fingerDot" style="display:none;position:absolute;width:22px;height:22px;border-radius:50%;border:2px solid var(--accent3);box-shadow:0 0 16px var(--accent3),0 0 6px var(--accent3);background:rgba(78,204,163,0.18);transform:translate(-50%,-50%);pointer-events:none;transition:opacity .08s;"></div>
-    </div>
+
 
     <!-- Text input overlay -->
     <input id="textInput" type="text" placeholder="اكتب هنا…" autocomplete="off"
@@ -1394,8 +1378,10 @@ function doJoin(rid,showLoader){
   }
 
   myId=myId||generateId(12);
+  // Sanitize name before sending to server
+  myName = (myName||'').replace(/<[^>]*>/g,'').trim().slice(0,30)||'فنان '+generateId(3);
 
-  socket.emit('join-room',{roomId:rid,userId:myId,name:myName},(res)=>{
+  socket.emit('join-room',{roomId:rid,userId:myId,name:myName,mode:window._currentLobbyMode||'free'},(res)=>{
     if(!res?.ok){toast('⚠️ خطأ في الدخول');showLobby();return;}
     myColor=res.color;
     updateUsers(res.users);
@@ -2100,20 +2086,34 @@ function triggerSnapshot(){
 }
 
 /* ─── USERS LIST ──────────────────────────────── */
+/* ── XSS helpers ── */
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function safeCss(s){ return String(s||'').replace(/[^#a-zA-Z0-9(),. %-]/g,''); }
+function sanitizeName(s){ return String(s||'').replace(/<[^>]*>/g,'').trim().slice(0,30)||'زائر'; }
+
 function updateUsers(list){
   const ul=document.getElementById('usersList');
   ul.innerHTML='';
   document.getElementById('roomUsersCount').textContent=list.length+' مستخدم';
   list.forEach(u=>{
-    const isMe=u.id===myId;
-    const initials=(u.name||'?').trim().slice(0,2);
+    const isMe=u.id===myId||u.userId===myId;
+    const name=sanitizeName(u.name);
+    const color=safeCss(u.color||'#5b8af0');
+    const initials=name.trim().slice(0,2);
     const div=document.createElement('div');
     div.className='user-item';
-    div.innerHTML=`
-      <div class="user-avatar" style="background:${u.color||'#5b8af0'}">${initials}</div>
-      <span class="user-name">${u.name||'زائر'}</span>
-      ${isMe?'<span class="user-me">أنت</span>':''}
-      <div class="user-online"></div>`;
+    const av=document.createElement('div');
+    av.className='user-avatar';
+    av.style.background=color;
+    av.textContent=initials;
+    const nm=document.createElement('span');
+    nm.className='user-name';
+    nm.textContent=name;
+    const onl=document.createElement('div');
+    onl.className='user-online';
+    div.appendChild(av); div.appendChild(nm);
+    if(isMe){ const me=document.createElement('span'); me.className='user-me'; me.textContent='أنت'; div.appendChild(me); }
+    div.appendChild(onl);
     ul.appendChild(div);
   });
 }
@@ -2126,8 +2126,16 @@ function showCursor({userId:uid,name,color,x,y}){
   if(!cursorEls[uid]){
     const el=document.createElement('div');
     el.className='r-cursor';
-    el.innerHTML=`<span class="r-cursor-arrow" style="color:${color}">➤</span>
-      <span class="r-cursor-lbl" style="background:${color}">${name||'زائر'}</span>`;
+    const safeColor=safeCss(color||'#6c8fff');
+    const arrow=document.createElement('span');
+    arrow.className='r-cursor-arrow';
+    arrow.style.color=safeColor;
+    arrow.textContent='➤';
+    const lbl=document.createElement('span');
+    lbl.className='r-cursor-lbl';
+    lbl.style.background=safeColor;
+    lbl.textContent=sanitizeName(name);
+    el.appendChild(arrow); el.appendChild(lbl);
     document.getElementById('wrap').appendChild(el);
     cursorEls[uid]=el;
   }
@@ -2804,25 +2812,6 @@ function onKey(e){
   let isWidgetVisible = false;
 
   /* ── Audio: soft ping on new message ── */
-  const audioCtx = window.AudioContext ? new AudioContext() : null;
-  function playPing(){
-    if(!audioCtx) return;
-    try{
-      const osc  = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(660, audioCtx.currentTime + 0.12);
-      gain.gain.setValueAtTime(0.07, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
-      osc.start(audioCtx.currentTime);
-      osc.stop(audioCtx.currentTime + 0.25);
-    }catch(_){}
-  }
-  /* Resume audio on first interaction */
-  document.addEventListener('pointerdown', ()=>{ if(audioCtx?.state==='suspended') audioCtx.resume(); }, {once:true});
-
   /* ── Show chat widget when user joins room ── */
   window.chatShow = function(){
     if(isWidgetVisible) return;
@@ -2886,16 +2875,21 @@ function onKey(e){
     const el = document.createElement('div');
     el.className = 'chat-msg ' + (isMine ? 'mine' : 'other');
     el.dataset.msgId = msg.id;
-    el.innerHTML = `
-      <div class="chat-msg-meta">
-        <div class="chat-msg-avatar" style="background:${esc(msg.color)};box-shadow:0 0 8px ${esc(msg.color)}88">${esc(initials)}</div>
-        <span class="chat-msg-name" style="color:${esc(msg.color)}">${esc(msg.name)}</span>
-        <span class="chat-msg-time">${fmtTime(msg.time)}</span>
-      </div>
-      <div class="chat-msg-bubble">${esc(msg.text)}</div>
-    `;
+    // Build message DOM safely (no innerHTML with user data)
+    const meta=document.createElement('div'); meta.className='chat-msg-meta';
+    const av2=document.createElement('div'); av2.className='chat-msg-avatar';
+    const msgClr=typeof safeCss==='function'?safeCss(msg.color||'#6c8fff'):esc(msg.color||'#6c8fff');
+    av2.style.background=msgClr; av2.style.boxShadow='0 0 8px '+msgClr+'88';
+    av2.textContent=esc(initials);
+    const nm2=document.createElement('span'); nm2.className='chat-msg-name';
+    nm2.style.color=msgClr; nm2.textContent=esc(msg.name||'زائر');
+    const tm2=document.createElement('span'); tm2.className='chat-msg-time';
+    tm2.textContent=fmtTime(msg.time);
+    meta.appendChild(av2); meta.appendChild(nm2); meta.appendChild(tm2);
+    const bubble=document.createElement('div'); bubble.className='chat-msg-bubble';
+    bubble.textContent=esc(msg.text||'');
+    el.appendChild(meta); el.appendChild(bubble);
     messages.appendChild(el);
-
     if(near || isMine) scrollToBottom();
   }
 
@@ -2907,7 +2901,9 @@ function onKey(e){
 
   /* ── Send message ── */
   function sendMessage(){
-    const text = input.value.trim();
+    let text = input.value.trim();
+    if(!text) return;
+    text = text.replace(/<[^>]*>/g,'').trim().slice(0,500);
     if(!text) return;
     if(!socket?.connected){ return; }
     socket.emit('chat-message', { text }, ()=>{});
@@ -2917,10 +2913,8 @@ function onKey(e){
     input.focus();
   }
 
-  /* ── Input events ── */
   input.addEventListener('input', ()=>{
     sendBtn.disabled = !input.value.trim();
-    /* Auto-grow textarea */
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 80) + 'px';
   });
@@ -2934,372 +2928,24 @@ function onKey(e){
 
   sendBtn.addEventListener('click', sendMessage);
 
-  /* ── Socket listeners (hooked after socket is ready) ── */
-  function hookSocket(){
+  /* ── Socket listeners ── */
+  function hookChatSocket(){
     if(!socket) return;
-
-    socket.on('chat-history', msgs=>{
-      renderHistory(msgs);
-    });
-
+    socket.on('chat-history', msgs=>{ renderHistory(msgs); });
     socket.on('chat-message', msg=>{
       renderMessage(msg);
       if(msg.userId !== myId){
-        playPing();
         incrementUnread();
       }
     });
   }
 
-  /* Poll for socket being available (socket is created async in original code) */
   const socketWait = setInterval(()=>{
     if(typeof socket !== 'undefined' && socket){
       clearInterval(socketWait);
-      hookSocket();
+      hookChatSocket();
     }
   }, 200);
-
-})();
-</script>
-
-<script>
-/* ═══════════════════════════════════════════════════
-   FINGER DRAWING VIA CAMERA MODULE
-   Uses MediaPipe Hands (CDN) for real-time finger tracking
-═══════════════════════════════════════════════════ */
-(function CameraDrawModule(){
-  let camStream = null;
-  let isActive = false;
-  let rafCam = null;
-  let hands = null;
-  let handsReady = false;
-  let lastFX = null, lastFY = null;
-  let isDrawingFinger = false;
-  let pinchCooldown = 0;
-
-  const overlay   = document.getElementById('cameraOverlay');
-  const video     = document.getElementById('camVideo');
-  const camCvs    = document.getElementById('camCanvas');
-  const statusTxt = document.getElementById('camStatusTxt');
-  const fingerDot = document.getElementById('fingerDot');
-  const camBtn    = document.getElementById('camBtn');
-
-  /* ── Resize camCanvas to match wrap ── */
-  function resizeCamCanvas(){
-    const wrap = document.getElementById('wrap');
-    camCvs.width  = wrap.clientWidth;
-    camCvs.height = wrap.clientHeight;
-  }
-  window.addEventListener('resize', ()=>{ if(isActive) resizeCamCanvas(); });
-
-  /* ── Load MediaPipe Hands lazily ── */
-  function loadMediaPipe(cb){
-    if(window.Hands){cb();return;}
-    statusTxt.textContent = 'تحميل نموذج الذكاء الاصطناعي…';
-    const s1 = document.createElement('script');
-    s1.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
-    s1.onload = ()=>{
-      const s2 = document.createElement('script');
-      s2.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js';
-      s2.onload = cb;
-      document.head.appendChild(s2);
-    };
-    document.head.appendChild(s1);
-  }
-
-  /* ── Init MediaPipe Hands ── */
-  function initHands(){
-    hands = new Hands({locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.6
-    });
-    hands.onResults(onHandResults);
-    handsReady = true;
-    statusTxt.textContent = 'ارفع إصبعك للرسم · اضغط بإصبعين للتوقف';
-  }
-
-  /* ── Map video coords → canvas coords (mirrored) ── */
-  function mapCoords(lm, w, h){
-    // Video is mirrored via CSS scaleX(-1), so flip x back
-    const x = (1 - lm.x) * w;
-    const y = lm.y * h;
-    return {x, y};
-  }
-
-  /* ── Distance between two landmarks ── */
-  function dist(a, b){
-    return Math.hypot(a.x - b.x, a.y - b.y);
-  }
-
-  /* ── Process hand results ── */
-  function onHandResults(results){
-    if(!isActive) return;
-    const ctx = camCvs.getContext('2d');
-    ctx.clearRect(0, 0, camCvs.width, camCvs.height);
-
-    if(!results.multiHandLandmarks || results.multiHandLandmarks.length === 0){
-      lastFX = null; lastFY = null;
-      isDrawingFinger = false;
-      fingerDot.style.display = 'none';
-      return;
-    }
-
-    const lms = results.multiHandLandmarks[0];
-    const W = camCvs.width, H = camCvs.height;
-
-    // Index fingertip = landmark 8, thumb tip = 4
-    const indexTip = mapCoords(lms[8], W, H);
-    const thumbTip = mapCoords(lms[4], W, H);
-    const middleTip = mapCoords(lms[12], W, H);
-
-    // Pinch = index + thumb close → stop drawing
-    const pinchDist = dist(lms[8], lms[4]);
-    const isPinching = pinchDist < 0.055;
-
-    // Two fingers up = index + middle extended → draw
-    const indexUp = lms[8].y < lms[6].y;
-    const middleUp = lms[12].y < lms[10].y;
-    const thumbFolded = lms[4].y > lms[3].y || dist(lms[8], lms[4]) > 0.08;
-
-    const shouldDraw = indexUp && !isPinching;
-
-    // Show finger dot
-    fingerDot.style.display = 'block';
-    fingerDot.style.left = indexTip.x + 'px';
-    fingerDot.style.top  = indexTip.y + 'px';
-    fingerDot.style.borderColor = shouldDraw ? 'var(--accent3)' : 'var(--accent2)';
-    fingerDot.style.boxShadow = shouldDraw
-      ? '0 0 16px var(--accent3),0 0 6px var(--accent3)'
-      : '0 0 16px var(--accent2),0 0 6px var(--accent2)';
-
-    // Draw visual trail on camCanvas
-    ctx.beginPath();
-    ctx.arc(indexTip.x, indexTip.y, 8, 0, Math.PI*2);
-    ctx.fillStyle = shouldDraw ? 'rgba(78,204,163,0.35)' : 'rgba(255,107,157,0.25)';
-    ctx.fill();
-    ctx.strokeStyle = shouldDraw ? '#4ecca3' : '#ff6b9d';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Map finger position to main drawing canvas coordinates
-    const mainCvs = document.getElementById('cvMain');
-    const wrapEl  = document.getElementById('wrap');
-    const scaleX  = mainCvs.width  / wrapEl.clientWidth;
-    const scaleY  = mainCvs.height / wrapEl.clientHeight;
-    const drawX   = indexTip.x * scaleX;
-    const drawY   = indexTip.y * scaleY;
-
-    if(shouldDraw){
-      if(!isDrawingFinger || lastFX === null){
-        // Pen down
-        isDrawingFinger = true;
-        pushUndo();
-        ctxMain.beginPath();
-        ctxMain.moveTo(drawX, drawY);
-        ctxMain.strokeStyle = curColor;
-        ctxMain.lineWidth   = Math.max(curSz, 3);
-        ctxMain.lineCap     = 'round';
-        ctxMain.lineJoin    = 'round';
-        ctxMain.globalAlpha = curOp;
-      } else {
-        // Continue stroke
-        ctxMain.lineTo(drawX, drawY);
-        ctxMain.stroke();
-        ctxMain.beginPath();
-        ctxMain.moveTo(drawX, drawY);
-      }
-      lastFX = drawX; lastFY = drawY;
-    } else {
-      if(isDrawingFinger){
-        ctxMain.stroke();
-        isDrawingFinger = false;
-        lastFX = null; lastFY = null;
-        // Emit to socket if available
-        try{
-          if(socket && socket.connected && typeof roomId !== 'undefined' && roomId){
-            const snap = ctxMain.getImageData(0,0,mainCvs.width,mainCvs.height);
-            // lightweight: just trigger snapshot sync
-          }
-        }catch(_){}
-      }
-    }
-  }
-
-  /* ── Send video frames to MediaPipe ── */
-  async function processLoop(){
-    if(!isActive || !handsReady) return;
-    try{ await hands.send({image: video}); }catch(_){}
-    rafCam = requestAnimationFrame(processLoop);
-  }
-
-  /* ── Toggle camera on/off ── */
-  window.toggleCamera = async function(){
-    if(isActive){
-      stopCamera();
-    } else {
-      await startCamera();
-    }
-  };
-
-  async function startCamera(){
-    overlay.style.display = 'block';
-    camBtn.classList.add('on');
-    camBtn.style.color = 'var(--accent3)';
-    statusTxt.textContent = 'طلب إذن الكاميرا…';
-    resizeCamCanvas();
-
-    try{
-      camStream = await navigator.mediaDevices.getUserMedia({
-        video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} },
-        audio:false
-      });
-      video.srcObject = camStream;
-      await video.play();
-      isActive = true;
-      statusTxt.textContent = 'تحميل نموذج الذكاء الاصطناعي…';
-
-      loadMediaPipe(()=>{
-        initHands();
-        rafCam = requestAnimationFrame(processLoop);
-      });
-    } catch(e){
-      statusTxt.textContent = 'لا يمكن الوصول للكاميرا';
-      camBtn.classList.remove('on');
-      camBtn.style.color = '';
-      setTimeout(()=>{ overlay.style.display='none'; }, 2200);
-    }
-  }
-
-  function stopCamera(){
-    isActive = false;
-    handsReady = false;
-    if(rafCam){ cancelAnimationFrame(rafCam); rafCam=null; }
-    if(camStream){ camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
-    if(hands){ try{ hands.close(); }catch(_){} hands=null; }
-    isDrawingFinger = false;
-    lastFX=null; lastFY=null;
-    fingerDot.style.display='none';
-    overlay.style.display='none';
-    camBtn.classList.remove('on');
-    camBtn.style.color='';
-    const ctx = camCvs.getContext('2d');
-    ctx.clearRect(0,0,camCvs.width,camCvs.height);
-  }
-
-  /* ── pushUndo helper (reuse existing if available) ── */
-  function pushUndo(){
-    try{
-      if(typeof undoStack !== 'undefined'){
-        undoStack.push(ctxMain.getImageData(0,0,cvMain.width,cvMain.height));
-        if(undoStack.length>20) undoStack.shift();
-        redoStack.length=0;
-      }
-    }catch(_){}
-  }
-
-})();
-</script>
-
-<script>
-/* ═══════════════════════════════════════════════════════
-   VOICE CALL MODULE — WebRTC peer-to-peer via Socket.IO signaling
-   Requires: socket (global), myId, myName, myColor, roomId
-═══════════════════════════════════════════════════════ */
-(function VoiceCallModule(){
-  const STUN = { iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}] };
-
-  let localStream  = null;
-  let peers        = {};      // peerId → RTCPeerConnection
-  let callActive   = false;
-  let isMuted      = false;
-
-  const panel      = document.getElementById('voice-call-panel');
-  const callBtn    = document.getElementById('voiceCallBtn');
-  const statusEl   = document.getElementById('voiceCallStatus');
-  const muteBtn    = document.getElementById('muteBtn');
-  const chipsEl    = document.getElementById('voiceParticipants');
-  const audiosEl   = document.getElementById('remoteAudios');
-
-  /* ── Chip management ── */
-  function addChip(id, name, color){
-    if(document.getElementById('chip-'+id)) return;
-    const c = document.createElement('div');
-    c.className = 'voice-chip';
-    c.id = 'chip-'+id;
-    c.innerHTML = `<span class="voice-chip-dot" style="background:${color||'var(--accent3)'};box-shadow:0 0 5px ${color||'var(--accent3)'}"></span><span>${name||'مجهول'}</span>`;
-    chipsEl.appendChild(c);
-  }
-  function removeChip(id){ const el=document.getElementById('chip-'+id); if(el) el.remove(); }
-  function setChipSpeaking(id, speaking){
-    const el=document.getElementById('chip-'+id);
-    if(el) el.classList.toggle('speaking', speaking);
-  }
-
-  /* ── Remote audio element ── */
-  function getOrCreateAudio(id){
-    let a = document.getElementById('audio-'+id);
-    if(!a){
-      a = document.createElement('audio');
-      a.id = 'audio-'+id;
-      a.autoplay = true;
-      a.playsInline = true;
-      audiosEl.appendChild(a);
-    }
-    return a;
-  }
-
-  /* ── Create a peer connection to a remote user ── */
-  async function createPeer(remoteId, isInitiator){
-    if(peers[remoteId]) return;
-    const pc = new RTCPeerConnection(STUN);
-    peers[remoteId] = pc;
-
-    // Add local tracks
-    if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t, localStream));
-
-    // ICE
-    pc.onicecandidate = e=>{
-      if(e.candidate && socket?.connected){
-        socket.emit('voice-ice', { to: remoteId, candidate: e.candidate });
-      }
-    };
-
-    // Remote stream
-    pc.ontrack = e=>{
-      const audio = getOrCreateAudio(remoteId);
-      if(audio.srcObject !== e.streams[0]) audio.srcObject = e.streams[0];
-    };
-
-    pc.onconnectionstatechange = ()=>{
-      if(['disconnected','failed','closed'].includes(pc.connectionState)){
-        closePeer(remoteId);
-      }
-    };
-
-    if(isInitiator){
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket?.emit('voice-offer', { to: remoteId, offer: pc.localDescription });
-    }
-    return pc;
-  }
-
-  function closePeer(id){
-    if(peers[id]){ peers[id].close(); delete peers[id]; }
-    const a = document.getElementById('audio-'+id);
-    if(a){ a.srcObject=null; a.remove(); }
-    removeChip(id);
-    updateStatus();
-  }
-
-  function updateStatus(){
-    const n = Object.keys(peers).length;
-    if(n===0) statusEl.textContent = 'لا يوجد مشاركون آخرون';
-    else statusEl.textContent = `${n} مشارك${n>1?'ون':''}`;
-  }
 
   /* ── Toggle call ── */
   window.toggleVoiceCall = async function(){
@@ -3514,22 +3160,34 @@ function onKey(e){
     const el = document.createElement('div');
     el.className = 'chat-msg ' + (isMine?'mine':'other');
     const initials = (msg.name||'?').charAt(0).toUpperCase();
-    const bars = Array.from({length:24}, (_,i)=>{
-      const h = 4 + Math.random()*20;
-      return `<div class="voice-waveform-bar" style="height:${h}px;"></div>`;
-    }).join('');
-    el.innerHTML = `
-      <div class="chat-msg-meta">
-        <div class="chat-msg-avatar" style="background:${msg.color};box-shadow:0 0 8px ${msg.color}88">${initials}</div>
-        <span class="chat-msg-name" style="color:${msg.color}">${msg.name||'مجهول'}</span>
-        <span class="chat-msg-time" style="font-family:var(--mono);font-size:9px;color:var(--txt3);">${fmtMsgTime(msg.time)}</span>
-      </div>
-      <div class="voice-msg-bubble">
-        <button class="voice-play-btn" data-audio="${encodeURIComponent(msg.audio)}" onclick="playVoiceMsg(this)">▶</button>
-        <div class="voice-waveform">${bars}</div>
-        <span class="voice-duration">${fmtTime(msg.duration||0)}</span>
-      </div>
-    `;
+    const msgColor4=safeCss(msg.color||'#6c8fff');
+    const metaDiv=document.createElement('div'); metaDiv.className='chat-msg-meta';
+    const avEl=document.createElement('div'); avEl.className='chat-msg-avatar';
+    avEl.style.background=msgColor4; avEl.style.boxShadow='0 0 8px '+msgColor4+'88';
+    avEl.textContent=initials;
+    const nmEl=document.createElement('span'); nmEl.className='chat-msg-name';
+    nmEl.style.color=msgColor4; nmEl.textContent=sanitizeName(msg.name)||'مجهول';
+    const tmEl=document.createElement('span'); tmEl.className='chat-msg-time';
+    tmEl.style.cssText='font-family:var(--mono);font-size:9px;color:var(--txt3);';
+    tmEl.textContent=fmtMsgTime(msg.time);
+    metaDiv.appendChild(avEl); metaDiv.appendChild(nmEl); metaDiv.appendChild(tmEl);
+    el.appendChild(metaDiv);
+    const bubbleDiv_VOICE=document.createElement('div'); // placeholder to replace innerHTML below
+    el.appendChild(bubbleDiv_VOICE);
+    el.removeChild(bubbleDiv_VOICE);
+    // Voice bubble built safely below — append to el after meta
+    const voiceBubble=document.createElement('div'); voiceBubble.className='voice-msg-bubble';
+    el.appendChild(voiceBubble);
+    // build voice bubble content
+    const playB=document.createElement('button'); playB.className='voice-play-btn'; playB.textContent='▶';
+    const waveD=document.createElement('div'); waveD.className='voice-waveform';
+    Array.from({length:24},(_,i)=>{ const b=document.createElement('div'); b.className='voice-waveform-bar'; b.style.height=(4+Math.random()*20)+'px'; waveD.appendChild(b); });
+    const durS=document.createElement('span'); durS.className='voice-duration'; durS.textContent=fmtTime(msg.duration||0);
+    voiceBubble.appendChild(playB); voiceBubble.appendChild(waveD); voiceBubble.appendChild(durS);
+    // Play logic
+    let audioV=null;
+    playB.onclick=()=>{ if(!audioV){ audioV=new Audio(msg.audio); audioV.onended=()=>{playB.textContent='▶'; waveD.querySelectorAll('.voice-waveform-bar').forEach(b=>b.style.background=''); }; } if(audioV.paused){ audioV.play(); playB.textContent='⏸'; waveD.querySelectorAll('.voice-waveform-bar').forEach(b=>b.style.background='var(--accent)'); } else { audioV.pause(); playB.textContent='▶'; waveD.querySelectorAll('.voice-waveform-bar').forEach(b=>b.style.background=''); } };
+
     messages.appendChild(el);
     messages.scrollTop = messages.scrollHeight;
   };
@@ -3752,6 +3410,7 @@ function onKey(e){
   /* expose for lobby buttons */
   window.setLobbyMode = function(mode){
     gameMode = mode;
+    window._currentLobbyMode = mode;
     document.getElementById('modeFreeBtn').className = 'btn ' + (mode==='free' ? 'btn-accent' : 'btn-ghost');
     document.getElementById('modeGameBtn').className = 'btn ' + (mode==='guess'? 'btn-accent' : 'btn-ghost');
   };
@@ -4041,5 +3700,433 @@ function onKey(e){
 
 })();
 </script>
+
+<!-- ══════════ GUESS WAITING ROOM ══════════ -->
+<div id="guessWaitScreen" style="display:none;position:fixed;inset:0;z-index:500;background:var(--bg0);align-items:center;justify-content:center;flex-direction:column;gap:0;">
+  <style>
+  #guessWaitScreen{display:none;}
+  #guessWaitScreen.show{display:flex!important;}
+
+  .gws-bg{
+    position:absolute;inset:0;
+    background:radial-gradient(ellipse 70% 60% at 50% 40%,#6c8fff0f 0%,transparent 70%),
+               radial-gradient(ellipse 50% 40% at 20% 80%,#ff6b9d09 0%,transparent 60%);
+    pointer-events:none;
+  }
+  .gws-card{
+    position:relative;z-index:1;
+    background:rgba(15,18,25,0.92);
+    border:1px solid var(--border2);
+    border-radius:24px;
+    padding:44px 48px;
+    display:flex;flex-direction:column;align-items:center;gap:28px;
+    box-shadow:0 8px 60px rgba(0,0,0,.6),inset 0 1px 0 var(--border1);
+    max-width:420px;width:90vw;
+    backdrop-filter:blur(24px);
+    animation:fadeUp .4s var(--ease);
+  }
+  .gws-card::before{
+    content:'';position:absolute;top:0;left:10%;right:10%;height:1px;
+    background:linear-gradient(90deg,transparent,var(--accent)80,var(--accent2)50,transparent);
+    opacity:.5;
+  }
+
+  /* ── Spinner wheel ── */
+  .gws-spin-wrap{position:relative;width:100px;height:100px;}
+  .gws-ring{
+    position:absolute;inset:0;border-radius:50%;
+    border:3px solid transparent;
+    animation:gwsSpin 1.1s linear infinite;
+  }
+  .gws-ring1{border-top-color:var(--accent);border-right-color:#6c8fff50;animation-duration:1.1s;}
+  .gws-ring2{inset:10px;border-top-color:var(--accent2);border-left-color:#ff6b9d40;animation-duration:1.7s;animation-direction:reverse;}
+  .gws-ring3{inset:20px;border-top-color:var(--accent3);border-bottom-color:#4ecca340;animation-duration:2.3s;}
+  .gws-ring-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:28px;animation:floatY 2s ease-in-out infinite;}
+  @keyframes gwsSpin{to{transform:rotate(360deg)}}
+
+  .gws-title{font-size:20px;font-weight:700;color:var(--txt0);text-align:center;font-family:var(--font);}
+  .gws-sub{font-size:13px;color:var(--txt2);text-align:center;font-family:var(--font2);line-height:1.7;}
+
+  /* ── Room code badge ── */
+  .gws-code-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;}
+  .gws-code-lbl{font-size:10px;color:var(--txt3);font-family:var(--mono);letter-spacing:1.4px;text-transform:uppercase;}
+  .gws-code{
+    font-family:var(--mono);font-size:28px;font-weight:700;letter-spacing:10px;
+    color:var(--accent);
+    background:var(--accent-g);
+    border:1px solid #6c8fff30;
+    border-radius:var(--r12);
+    padding:10px 24px;
+    cursor:pointer;
+    transition:box-shadow .2s,border-color .2s;
+    animation:borderGlow 2.5s ease-in-out infinite;
+    user-select:all;
+  }
+  .gws-code:hover{box-shadow:0 0 24px #6c8fff50;border-color:#6c8fff60;}
+  .gws-copy-hint{font-size:10px;color:var(--txt3);font-family:var(--mono);}
+
+  /* ── Players list ── */
+  .gws-players{width:100%;}
+  .gws-players-lbl{font-size:10px;color:var(--txt3);font-family:var(--mono);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:10px;}
+  .gws-players-list{display:flex;flex-wrap:wrap;gap:8px;}
+  .gws-player-chip{
+    display:flex;align-items:center;gap:7px;
+    padding:6px 12px;border-radius:20px;
+    background:rgba(255,255,255,.04);
+    border:1px solid var(--border2);
+    font-size:12px;color:var(--txt1);
+    font-family:var(--font2);
+    animation:popIn .3s var(--ease);
+  }
+  .gws-player-dot{width:8px;height:8px;border-radius:50%;}
+
+  /* ── Start button ── */
+  .gws-start-btn{
+    width:100%;padding:13px;border:none;border-radius:var(--r12);
+    background:linear-gradient(135deg,var(--accent) 0%,#5578e8 100%);
+    color:#fff;font-family:var(--font);font-size:14px;font-weight:700;
+    cursor:pointer;transition:all .2s var(--ease);
+    box-shadow:0 4px 24px #6c8fff40;
+    display:none;
+  }
+  .gws-start-btn.show{display:block;}
+  .gws-start-btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px #6c8fff60;}
+  .gws-start-btn:active{transform:none;}
+
+  .gws-waiting-dots::after{
+    content:'';
+    animation:gwsDots 1.4s steps(4,end) infinite;
+  }
+  @keyframes gwsDots{
+    0%{content:''} 25%{content:'.'} 50%{content:'..'} 75%{content:'...'} 100%{content:''}
+  }
+
+  /* ── Role reveal overlay ── */
+  #roleRevealOverlay{
+    display:none;position:fixed;inset:0;z-index:600;
+    background:rgba(5,6,8,0.96);
+    align-items:center;justify-content:center;
+    flex-direction:column;gap:20px;
+  }
+  #roleRevealOverlay.show{display:flex;}
+  .rro-title{font-size:14px;color:var(--txt3);font-family:var(--mono);letter-spacing:1.5px;text-transform:uppercase;animation:fadeUp .4s var(--ease);}
+  .rro-role{
+    font-size:52px;font-weight:700;font-family:var(--font);
+    animation:popIn .5s var(--ease);
+    text-align:center;line-height:1.2;
+  }
+  .rro-role.drawer{
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    filter:drop-shadow(0 0 30px #6c8fff60);
+  }
+  .rro-role.guesser{
+    background:linear-gradient(135deg,var(--accent3),#2ecc88);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+    filter:drop-shadow(0 0 30px #4ecca360);
+  }
+  .rro-word{font-size:22px;color:var(--txt0);font-family:var(--font2);animation:fadeUp .5s .2s var(--ease) both;}
+  .rro-sub{font-size:13px;color:var(--txt2);font-family:var(--font2);animation:fadeUp .4s .4s var(--ease) both;}
+  .rro-bar{
+    width:260px;height:4px;background:var(--border1);border-radius:2px;overflow:hidden;
+    animation:fadeUp .4s .3s var(--ease) both;
+  }
+  .rro-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;animation:rroFill 3s linear forwards;}
+  @keyframes rroFill{from{width:0}to{width:100%}}
+
+  /* ── Wheel spin animation ── */
+  .gws-wheel-spin{
+    animation:gwsWheelSpin 0.6s cubic-bezier(.4,0,.2,1) forwards;
+  }
+  @keyframes gwsWheelSpin{
+    0%{transform:scale(1) rotate(0deg);}
+    40%{transform:scale(1.18) rotate(540deg);}
+    70%{transform:scale(0.95) rotate(1020deg);}
+    100%{transform:scale(1) rotate(1080deg);}
+  }
+  </style>
+  <div class="gws-bg"></div>
+  <div class="gws-card">
+    <div class="gws-spin-wrap" id="gwsSpinWrap">
+      <div class="gws-ring gws-ring1"></div>
+      <div class="gws-ring gws-ring2"></div>
+      <div class="gws-ring gws-ring3"></div>
+      <div class="gws-ring-icon">🎯</div>
+    </div>
+    <div>
+      <div class="gws-title">وضع التخمين</div>
+      <div class="gws-sub" id="gwsSubTxt">في انتظار انضمام صاحبك<span class="gws-waiting-dots"></span></div>
+    </div>
+    <div class="gws-code-wrap">
+      <div class="gws-code-lbl">كود الغرفة</div>
+      <div class="gws-code" id="gwsCode" onclick="copyGwsCode()" title="اضغط للنسخ">----</div>
+      <div class="gws-copy-hint">اضغط على الكود لنسخه 📋</div>
+    </div>
+    <div class="gws-players" id="gwsPlayersWrap">
+      <div class="gws-players-lbl">اللاعبون المتصلون</div>
+      <div class="gws-players-list" id="gwsPlayersList"></div>
+    </div>
+    <button class="gws-start-btn" id="gwsStartBtn" onclick="gwsHostStart()">
+      🎮 ابدأ اللعبة الآن!
+    </button>
+    <div style="font-size:11px;color:var(--txt3);font-family:var(--font2);text-align:center;" id="gwsMinTxt">يجب أن يكون هناك لاعبان على الأقل للبدء</div>
+  </div>
+</div>
+
+<!-- Role Reveal Overlay -->
+<div id="roleRevealOverlay">
+  <div class="rro-title">دورك في هذه الجولة</div>
+  <div class="rro-role" id="rroRole">🖌️ رسام</div>
+  <div class="rro-word" id="rroWord" style="display:none;"></div>
+  <div class="rro-sub" id="rroSub">تبدأ اللعبة خلال ثوانٍ…</div>
+  <div class="rro-bar"><div class="rro-bar-fill" id="rroBarFill"></div></div>
+</div>
+
+
+
+<script>
+/* ══════════════════════════════════════════════════════
+   GUESS MODE — WAITING ROOM + ROLE REVEAL
+   Flow:
+   1. User picks "تخمين" mode → enters/creates room
+   2. guessWaitScreen shows with spinning rings + room code
+   3. Players list updates live via room-users socket event
+   4. When ≥2 players → Start button appears (any player can start)
+   5. Host clicks Start → server picks drawer randomly
+   6. Role reveal overlay shows (3s) → game begins
+══════════════════════════════════════════════════════ */
+(function GuessWaitModule(){
+
+  /* ── State ── */
+  let gwsActive = false;
+  let gwsPlayers = [];   // { userId, name, color }
+  let isGuessMode = false;
+
+  const screen   = document.getElementById('guessWaitScreen');
+  const codeEl   = document.getElementById('gwsCode');
+  const listEl   = document.getElementById('gwsPlayersList');
+  const startBtn = document.getElementById('gwsStartBtn');
+  const subTxt   = document.getElementById('gwsSubTxt');
+  const minTxt   = document.getElementById('gwsMinTxt');
+  const spinWrap = document.getElementById('gwsSpinWrap');
+
+  /* ── Copy room code ── */
+  window.copyGwsCode = function(){
+    const code = codeEl.textContent;
+    navigator.clipboard.writeText(code).then(()=>{
+      codeEl.textContent = '✅ تم النسخ';
+      setTimeout(()=>{ codeEl.textContent = code; }, 1400);
+    }).catch(()=>{
+      // fallback
+      const t=document.createElement('textarea');
+      t.value=code; document.body.appendChild(t);
+      t.select(); document.execCommand('copy'); document.body.removeChild(t);
+      codeEl.textContent = '✅ تم النسخ';
+      setTimeout(()=>{ codeEl.textContent = code; }, 1400);
+    });
+  };
+
+  /* ── Show/hide waiting screen ── */
+  window.showGuessWaitScreen = function(rid){
+    gwsActive = true;
+    codeEl.textContent = rid || '----';
+    screen.classList.add('show');
+    renderGwsPlayers();
+  };
+
+  window.hideGuessWaitScreen = function(){
+    gwsActive = false;
+    screen.classList.remove('show');
+  };
+
+  /* ── Render players in waiting room ── */
+  function renderGwsPlayers(){
+    listEl.innerHTML = '';
+    gwsPlayers.forEach(p=>{
+      const chip = document.createElement('div');
+      chip.className = 'gws-player-chip';
+      const dot = document.createElement('div');
+      dot.className = 'gws-player-dot';
+      dot.style.background = safeCss(p.color||'#6c8fff');
+      dot.style.boxShadow = '0 0 6px '+safeCss(p.color||'#6c8fff');
+      const nm = document.createElement('span');
+      nm.textContent = sanitizeName(p.name);
+      chip.appendChild(dot); chip.appendChild(nm);
+      listEl.appendChild(chip);
+    });
+
+    const count = gwsPlayers.length;
+    const canStart = count >= 2;
+
+    if(canStart){
+      subTxt.innerHTML = `<strong style="color:var(--accent3)">${count} لاعبين جاهزون</strong> — يمكنك البدء!`;
+      startBtn.classList.add('show');
+      minTxt.style.display = 'none';
+    } else {
+      subTxt.innerHTML = `في انتظار انضمام صاحبك<span class="gws-waiting-dots"></span>`;
+      startBtn.classList.remove('show');
+      minTxt.style.display = '';
+    }
+  }
+
+  /* ── Host starts game ── */
+  window.gwsHostStart = function(){
+    if(gwsPlayers.length < 2){
+      // flash warning
+      minTxt.style.color = 'var(--red)';
+      setTimeout(()=>{ minTxt.style.color = ''; }, 1500);
+      return;
+    }
+    // Spin wheel animation
+    spinWrap.classList.add('gws-wheel-spin');
+
+    // Pick roles randomly client-side first for visual (server confirms)
+    const ids = gwsPlayers.map(p=>p.userId);
+    const drawerIdx = Math.floor(Math.random() * ids.length);
+    const pickedDrawerId = ids[drawerIdx];
+
+    subTxt.innerHTML = '<strong style="color:var(--accent)">جاري اختيار الرسام…</strong>';
+    startBtn.disabled = true;
+
+    setTimeout(()=>{
+      spinWrap.classList.remove('gws-wheel-spin');
+      if(typeof socket !== 'undefined' && socket?.connected){
+        const word = getRandomWord();
+        socket.emit('game-start', {
+          word,
+          drawerId: pickedDrawerId,
+          round: 1
+        });
+      } else {
+        // offline demo
+        const word = getRandomWord();
+        triggerRoleReveal(
+          pickedDrawerId === (typeof myId!=='undefined'?myId:'self') ? 'drawer' : 'guesser',
+          word,
+          gwsPlayers.find(p=>p.userId===pickedDrawerId)?.name || 'رسام',
+          pickedDrawerId
+        );
+      }
+    }, 900);
+  };
+
+  function getRandomWord(){
+    const WORDS = ['قطة','كلب','شجرة','سيارة','بيت','طائرة','قمر','شمس','سمكة','زهرة',
+      'كتاب','ساعة','هاتف','كرسي','طاولة','قلم','حاسوب','تفاحة','موزة','برتقالة',
+      'قلعة','جبل','نهر','بحر','صحراء','غيوم','ثلج','نار','موجة','جزيرة',
+      'غيتار','بيانو','طبل','روبوت','صاروخ','عنكبوت','فراشة','أسد','فيل','زرافة'];
+    return WORDS[Math.floor(Math.random()*WORDS.length)];
+  }
+
+  /* ── Role reveal animation ── */
+  window.triggerRoleReveal = function(role, word, drawerNameStr, drawerId){
+    hideGuessWaitScreen();
+
+    const overlay  = document.getElementById('roleRevealOverlay');
+    const roleEl   = document.getElementById('rroRole');
+    const wordEl   = document.getElementById('rroWord');
+    const subEl    = document.getElementById('rroSub');
+    const barFill  = document.getElementById('rroBarFill');
+
+    const isDrawer = role === 'drawer';
+    roleEl.className = 'rro-role ' + (isDrawer ? 'drawer' : 'guesser');
+    roleEl.textContent = isDrawer ? '🖌️ أنت الرسام!' : '🔍 أنت المخمّن!';
+
+    if(isDrawer && word){
+      wordEl.style.display = 'block';
+      wordEl.textContent = 'كلمتك: ' + word;
+    } else {
+      wordEl.style.display = 'none';
+    }
+
+    subEl.textContent = isDrawer
+      ? 'ارسم الكلمة بدون أن تكتبها!'
+      : `${drawerNameStr || 'رسام'} يرسم — ركّز وخمّن!`;
+
+    // Reset bar
+    barFill.style.animation = 'none';
+    barFill.offsetHeight; // reflow
+    barFill.style.animation = 'rroFill 3s linear forwards';
+
+    overlay.classList.add('show');
+
+    setTimeout(()=>{
+      overlay.classList.remove('show');
+      // Now actually trigger the game
+      if(typeof startRound === 'function'){
+        // startRound is inside the game module — we call it via the exposed hook
+      }
+      if(typeof window._gameModule !== 'undefined'){
+        window._gameModule.startRound(
+          isDrawer ? word : '',
+          drawerId,
+          drawerNameStr,
+          1
+        );
+      }
+    }, 3200);
+  };
+
+  /* ── Intercept openApp to show waiting screen in guess mode ── */
+  const _origOpenApp = window.openApp;
+  window.openApp = function(rid){
+    _origOpenApp.call(this, rid);
+    isGuessMode = (typeof window._gwsMode !== 'undefined') ? window._gwsMode : false;
+    // Check stored mode
+    if(window._currentLobbyMode === 'guess'){
+      showGuessWaitScreen(rid);
+    }
+  };
+
+  /* ── Track lobby mode ── */
+  // _currentLobbyMode is set by setLobbyMode in game module
+  if(typeof window._currentLobbyMode === 'undefined') window._currentLobbyMode = 'free';
+
+  /* ── Socket: update players in waiting room ── */
+  function hookGwsSocket(){
+    if(!socket) return;
+
+    socket.on('room-users', function(users){
+      gwsPlayers = users.map(u=>({
+        userId: u.userId || u.id,
+        name: sanitizeName(u.name),
+        color: safeCss(u.color||'#6c8fff')
+      }));
+      if(gwsActive) renderGwsPlayers();
+    });
+
+    // Server confirms game start with roles
+    socket.on('game-start-round', function({word, drawerId, drawerName, round}){
+      if(window._currentLobbyMode !== 'guess') return;
+      const role = (typeof myId !== 'undefined' && myId === drawerId) ? 'drawer' : 'guesser';
+      triggerRoleReveal(role, word, drawerName, drawerId);
+    });
+  }
+
+  const gwsWait = setInterval(()=>{
+    if(typeof socket !== 'undefined' && socket){
+      clearInterval(gwsWait);
+      if(socket.connected) hookGwsSocket();
+      else socket.once('connect', hookGwsSocket);
+    }
+  }, 300);
+
+  /* ── Also update waiting screen when users join/leave ── */
+  const _origUpdateUsers = window.updateUsers;
+  if(typeof _origUpdateUsers === 'function'){
+    window.updateUsers = function(list){
+      _origUpdateUsers(list);
+      gwsPlayers = list.map(u=>({
+        userId: u.userId || u.id,
+        name: sanitizeName(u.name),
+        color: safeCss(u.color||'#6c8fff')
+      }));
+      if(gwsActive) renderGwsPlayers();
+    };
+  }
+
+})();
+</script>
+
 </body>
 </html>
